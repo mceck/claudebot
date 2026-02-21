@@ -1,0 +1,11 @@
+[project]
+name = "claudebot"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+packages = [{include = "app"}]
+requires-python = ">=3.12"
+dependencies = [
+    "pydantic-settings>=2.13.1",
+    "python-telegram-bot>=22.6",
+]

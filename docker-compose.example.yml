@@ -1,0 +1,19 @@
+services:
+  claude-bot:
+    build:
+      context: .
+    container_name: claude-bot
+    environment:
+      - PROJECTS_DIR=/app/projects # Directory where your projects are stored inside the container
+      - ALLOWED_USER_IDS=[xxx] # Replace with your Telegram user ID(s)
+      - TELEGRAM_BOT_TOKEN=xxx # Your Telegram bot token
+      - CLAUDE_CODE_OAUTH_TOKEN=xxx # Your Claude Code OAuth token
+      - GIT_SSH_COMMAND="ssh -i /home/appuser/.ssh/git" # Use the mounted SSH key for git operations
+      - GIT_AUTHOR_NAME=claudebot
+      - GIT_AUTHOR_EMAIL=xxx
+      - GIT_COMMITTER_NAME=claudebot
+      - GIT_COMMITTER_EMAIL=xxx
+    volumes:
+      - /your/local/projects:/app/projects # Mount your local projects directory
+      - /your/local/gitssh:/home/appuser/.ssh:ro # Mount your git SSH keys for git access
+    restart: always
