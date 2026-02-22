@@ -8,7 +8,7 @@ RUN uv sync --no-dev --frozen
 FROM base
 WORKDIR /app
 COPY --from=builder /.venv /.venv
-ENV PATH="/.venv/bin:$PATH"
+ENV PATH="/.venv/bin:/home/appuser/.local/bin:$PATH"
 ENV PYTHONPATH="/app"
 ENV PYTHONUNBUFFERED=1
 RUN apt-get update && apt-get install -y curl vim git && rm -rf /var/lib/apt/lists/*
