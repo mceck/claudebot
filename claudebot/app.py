@@ -210,7 +210,7 @@ async def git_reset(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     else:
         _, output_clean = await run_command("git clean -fd", cwd=project_path)
         output += "\n" + output_clean
-        ret_code_pull, output_pull = await run_command("git pull", cwd=project_path)
+        ret_code_pull, output_pull = await run_command("git pull --rebase", cwd=project_path)
         output += "\n" + output_pull
         if ret_code_pull != 0:
             await send_message(update, context, f'Git pull failed with code {ret_code_pull}:\n{output_pull}')
