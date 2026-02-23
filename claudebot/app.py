@@ -344,7 +344,12 @@ async def git_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     ret_code, output = await run_command(f"git checkout {branch}", cwd=project_path)
     
     if ret_code != 0:
-        await send_message(update, context, f'Git checkout failed with code {ret_code}:\n{output}')
+        ret_code, output = await run_command(f"git checkout -b {branch}", cwd=project_path)
+        if ret_code != 0:
+            await send_message(update, context, f'Git checkout failed with code {ret_code}:\n{output}')
+            return
+        else:
+            await send_message(update, context, f'New branch created:\n{output}')
     else:
         ret_code_pull, output_pull = await run_command("git pull", cwd=project_path)
         output += "\n" + output_pull
