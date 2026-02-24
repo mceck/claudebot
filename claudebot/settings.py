@@ -8,6 +8,8 @@ class AppSettings(BaseSettings):
     ALLOWED_USER_IDS: list[int] = []
     MODEL: str = "opus"
     EFFORT: str = "high"
+    MISTRAL_API_KEY: str = ""
+    TRANSCRIPTION_LANGUAGE: str = "en"
 
     @property
     def projects_dir(self) -> str:
