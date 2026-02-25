@@ -80,19 +80,42 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
 @authenticated
 async def kill_claude(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    if not ctx.current_project:
-        await send_message(
-            update,
-            context,
-            "No project selected. Please select a project using /select.",
-        )
+    project = context.args[0] if context.args else None
+
+    if project:
+        claude_session = ctx.claude_sessions.pop(project, None)
+        if claude_session:
+            await claude_session.kill()
+            await send_message(update, context, f"Claude session for *{project}* killed successfully.", parse_mode="Markdown")
+        else:
+            await send_message(update, context, f"No active Claude session for *{project}*.", parse_mode="Markdown")
         return
-    claude_session = ctx.claude_sessions.pop(ctx.current_project, None)
-    if claude_session:
-        await claude_session.kill()
-        await send_message(update, context, "Claude session killed successfully.")
-    else:
-        await send_message(update, context, "No active Claude session to kill.")
+
+    active_sessions = list(ctx.claude_sessions.keys())
+    if not active_sessions:
+        await send_message(update, context, "No active Claude sessions to kill.")
+        return
+
+    keyboard = [
+        [InlineKeyboardButton(proj, callback_data=f"kill_{proj}")]
+        for proj in active_sessions
+    ]
+    reply_markup = InlineKeyboardMarkup(keyboard)
+    await send_message(update, context, "Select a session to kill:", reply_markup=reply_markup)
+
+
+@authenticated
+async def select_session_to_kill(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
+    option = query.data or ""
+    if option.startswith("kill_"):
+        project = option.split("_", 1)[1]
+        await query.edit_message_text(text=f"Killing session: {project}")
+        context.args = [project]
+        await kill_claude(update, context)
 
 @authenticated
 async def get_active_claude_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
