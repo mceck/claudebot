@@ -24,6 +24,7 @@ from claudebot.handlers.git_handlers import (
     git_push,
     git_fetch,
     git_checkout,
+    git_delete_branch,
 )
 from claudebot.handlers.claude_handlers import (
     check_login,
@@ -52,6 +53,7 @@ async def setup_commands(application):
         BotCommand(
             "gfetch", "Fetch updates from the git repository of the current project"
         ),
+        BotCommand("gdel", "Delete a git branch"),
         BotCommand("sessions", "List active Claude sessions"),
         BotCommand("kill", "Kill an active Claude session"),
         BotCommand("checklogin", "Check if the bot is logged in to Claude"),
@@ -81,10 +83,11 @@ app.add_handler(CommandHandler("gclone", git_clone))
 app.add_handler(CommandHandler("gpush", git_push))
 app.add_handler(CommandHandler("gfetch", git_fetch))
 app.add_handler(CommandHandler("gco", git_checkout))
+app.add_handler(CommandHandler("gdel", git_delete_branch))
 app.add_handler(CommandHandler("checklogin", check_login))
 app.add_handler(CallbackQueryHandler(select_project, pattern="^selectproject_"))
 app.add_handler(
-    CallbackQueryHandler(select_branch_for_checkout, pattern="^(gco_|gpush_)")
+    CallbackQueryHandler(select_branch_for_checkout, pattern="^(gco_|gpush_|gdel_)")
 )
 app.add_handler(CallbackQueryHandler(select_session_to_kill, pattern="^kill_"))
 app.add_handler(

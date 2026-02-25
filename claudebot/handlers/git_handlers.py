@@ -320,6 +320,61 @@ async def git_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
 
 
 @authenticated
+async def git_delete_branch(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not ctx.current_project:
+        await send_message(
+            update,
+            context,
+            "No project selected. Please select a project using /select.",
+        )
+        return
+    project_path = os.path.join(settings.projects_dir, ctx.current_project)
+    if not os.path.exists(project_path):
+        await send_message(
+            update, context, f"Project directory not found: {ctx.current_project}"
+        )
+        return
+
+    branch = " ".join(context.args) if context.args else None
+
+    if not branch:
+        ret_code, output = await run_command("git branch", cwd=project_path)
+
+        if ret_code != 0:
+            await send_message(update, context, f"Failed to get branches:\n{output}")
+            return
+
+        branches = [
+            line.strip().lstrip("* ")
+            for line in output.strip().split("\n")
+            if line.strip() and not line.strip().startswith("*")
+        ]
+
+        if not branches:
+            await send_message(update, context, "No branches available for deletion.")
+            return
+
+        keyboard = [
+            [InlineKeyboardButton(branch, callback_data=f"gdel_{branch}")]
+            for branch in branches
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        await send_message(
+            update, context, "Select branch to delete:", reply_markup=reply_markup
+        )
+        return
+
+    ret_code, output = await run_command(f"git branch -d {branch}", cwd=project_path)
+
+    if ret_code != 0:
+        await send_message(
+            update, context, f"Git branch delete failed with code {ret_code}:\n{output}"
+        )
+    else:
+        await send_message(update, context, f"Branch *{branch}* deleted successfully.", parse_mode="Markdown")
+
+
+@authenticated
 async def select_branch_for_checkout(
     update: Update, context: ContextTypes.DEFAULT_TYPE
 ) -> None:
@@ -328,12 +383,15 @@ async def select_branch_for_checkout(
         return
     await query.answer()
     option = query.data or "_"
-    if option.startswith("gpush_") or option.startswith("gco_"):
+    if option.startswith("gpush_") or option.startswith("gco_") or option.startswith("gdel_"):
         branch = option.split("_", 1)[1]
         context.args = [branch]
         if option.startswith("gco_"):
             await query.edit_message_text(text=f"Checking out branch: {branch}")
             await git_checkout(update, context)
+        elif option.startswith("gdel_"):
+            await query.edit_message_text(text=f"Deleting branch: {branch}")
+            await git_delete_branch(update, context)
         else:
             await query.edit_message_text(text=f"Pushing branch: {branch}")
             await git_push(update, context)
