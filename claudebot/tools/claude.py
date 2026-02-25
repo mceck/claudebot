@@ -1,27 +1,32 @@
 import asyncio
 import json
 import shlex
-from claudebot.shell import run_command
+from claudebot.tools.shell import run_command
 from claudebot.settings import settings
+
 
 class Claude:
     cwd: str
     process: asyncio.subprocess.Process | None
-    
+
     def __init__(self, cwd: str):
         self.cwd = cwd
         self.process = None
 
     @staticmethod
     async def check_login():
-        ret_code, output = await run_command("claude --dangerously-skip-permissions -p auth status")
+        ret_code, output = await run_command(
+            "claude --dangerously-skip-permissions -p auth status"
+        )
         if ret_code != 0:
             raise Exception(f"Failed to check login status: {output}")
         decoded = json.loads(output)
         logged = decoded.get("loggedIn", False)
         return logged
 
-    async def send(self, message: str, resume_session: bool = False, plan_mode: bool = False) -> tuple[int, str]:
+    async def send(
+        self, message: str, resume_session: bool = False, plan_mode: bool = False
+    ) -> tuple[int, str]:
         escaped_message = shlex.quote(message)
         cmd = f"claude --dangerously-skip-permissions"
         if settings.MODEL:
@@ -41,7 +46,9 @@ class Claude:
         )
         stdout, stderr = await self.process.communicate()
         if stderr:
-            print(f"Error from Claude process: {stderr.decode('utf-8', errors='ignore')}")
+            print(
+                f"Error from Claude process: {stderr.decode('utf-8', errors='ignore')}"
+            )
         res = stdout.decode("utf-8", errors="ignore").strip()
         return self.process.returncode or 0, res
 
