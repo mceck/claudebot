@@ -29,6 +29,7 @@ from claudebot.handlers.claude_handlers import (
     check_login,
     message_handler,
     kill_claude,
+    get_active_claude_sessions,
     transcription_to_claude_handler,
     voice_message_handler,
 )
@@ -50,6 +51,7 @@ async def setup_commands(application):
         BotCommand(
             "gfetch", "Fetch updates from the git repository of the current project"
         ),
+        BotCommand("sessions", "List active Claude sessions"),
         BotCommand("kill", "Kill the current Claude session"),
         BotCommand("checklogin", "Check if the bot is logged in to Claude"),
     ]
@@ -69,6 +71,7 @@ app.add_error_handler(error_handler)
 app.add_handler(CommandHandler("start", greet_user))
 app.add_handler(CommandHandler("select", pick_project))
 app.add_handler(CommandHandler("current", get_current_project))
+app.add_handler(CommandHandler("sessions", get_active_claude_sessions))
 app.add_handler(CommandHandler("kill", kill_claude))
 app.add_handler(CommandHandler("gstat", git_status))
 app.add_handler(CommandHandler("gdiff", git_diff))

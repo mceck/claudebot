@@ -94,6 +94,19 @@ async def kill_claude(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         await send_message(update, context, "No active Claude session to kill.")
 
+@authenticated
+async def get_active_claude_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    active_sessions = list(ctx.claude_sessions.keys())
+    if active_sessions:
+        session_list = "\n".join(f"- {proj}" for proj in active_sessions)
+        await send_message(
+            update,
+            context,
+            f"Active Claude sessions for projects:\n{session_list}",
+            parse_mode="Markdown",
+        )
+    else:
+        await send_message(update, context, "No active Claude sessions found.")
 
 @authenticated
 async def voice_message_handler(
