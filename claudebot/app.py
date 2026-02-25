@@ -34,6 +34,7 @@ from claudebot.handlers.claude_handlers import (
     get_active_claude_sessions,
     transcription_to_claude_handler,
     voice_message_handler,
+    clear_session
 )
 
 
@@ -56,6 +57,7 @@ async def setup_commands(application):
         BotCommand("gdel", "Delete a git branch"),
         BotCommand("sessions", "List active Claude sessions"),
         BotCommand("kill", "Kill an active Claude session"),
+        BotCommand("clear", "Clear the current Claude session"),
         BotCommand("checklogin", "Check if the bot is logged in to Claude"),
     ]
     await application.bot.set_my_commands(commands)
@@ -76,6 +78,7 @@ app.add_handler(CommandHandler("select", pick_project))
 app.add_handler(CommandHandler("current", get_current_project))
 app.add_handler(CommandHandler("sessions", get_active_claude_sessions))
 app.add_handler(CommandHandler("kill", kill_claude))
+app.add_handler(CommandHandler("clear", clear_session))
 app.add_handler(CommandHandler("gstat", git_status))
 app.add_handler(CommandHandler("gdiff", git_diff))
 app.add_handler(CommandHandler("greset", git_reset))

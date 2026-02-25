@@ -9,6 +9,7 @@ from telegram.ext import (
     ContextTypes,
 )
 from claudebot.tools.claude import Claude
+from claudebot.tools.shell import run_command
 from claudebot.settings import settings
 from claudebot.tools.auth import authenticated
 from claudebot.tools.messages import send_message
@@ -219,3 +220,17 @@ async def transcription_to_claude_handler(
         resp or "No response received from Claude.",
         parse_mode="Markdown",
     )
+
+
+@authenticated
+async def clear_session(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not ctx.current_project:
+        await send_message(
+            update,
+            context,
+            "No project selected. Please select a project using /select.",
+        )
+        return
+    cmd = 'ls -t ~/.claude/projects/$(echo $PWD | sed "s|/|-|g")/*.jsonl 2>/dev/null | head -1 | xargs rm -f'
+    await run_command(cmd, cwd=os.path.join(settings.projects_dir, ctx.current_project))
+    await send_message(update, context, "Claude session cleared successfully.")
