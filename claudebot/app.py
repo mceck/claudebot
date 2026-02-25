@@ -29,6 +29,7 @@ from claudebot.handlers.claude_handlers import (
     check_login,
     message_handler,
     kill_claude,
+    select_session_to_kill,
     get_active_claude_sessions,
     transcription_to_claude_handler,
     voice_message_handler,
@@ -52,7 +53,7 @@ async def setup_commands(application):
             "gfetch", "Fetch updates from the git repository of the current project"
         ),
         BotCommand("sessions", "List active Claude sessions"),
-        BotCommand("kill", "Kill the current Claude session"),
+        BotCommand("kill", "Kill an active Claude session"),
         BotCommand("checklogin", "Check if the bot is logged in to Claude"),
     ]
     await application.bot.set_my_commands(commands)
@@ -85,6 +86,7 @@ app.add_handler(CallbackQueryHandler(select_project, pattern="^selectproject_"))
 app.add_handler(
     CallbackQueryHandler(select_branch_for_checkout, pattern="^(gco_|gpush_)")
 )
+app.add_handler(CallbackQueryHandler(select_session_to_kill, pattern="^kill_"))
 app.add_handler(
     CallbackQueryHandler(
         transcription_to_claude_handler, pattern="^transcription_to_claude$"
