@@ -13,6 +13,8 @@ services:
       - GIT_AUTHOR_EMAIL=xxx
       - GIT_COMMITTER_NAME=claudebot
       - GIT_COMMITTER_EMAIL=xxx
+      - MISTRAL_API_KEY=xxx # Your Mistral API key for transcription
+      - TRANSCRIPTION_LANGUAGE=en
     volumes:
       - /your/local/projects:/home/codespace/claudebot/ws # Mount your local projects directory
       - /your/local/gitssh:/home/codespace/.ssh:ro # Mount your git SSH keys for git access
