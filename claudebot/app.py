@@ -6,8 +6,8 @@ from telegram.ext import (
     CallbackQueryHandler,
     filters,
 )
-from claudebot.tools.claude import Claude
 from claudebot.settings import settings
+from claudebot.tools.logger import Base, engine
 from claudebot.handlers.generic_handlers import (
     greet_user,
     pick_project,
@@ -61,6 +61,8 @@ async def setup_commands(application):
         BotCommand("checklogin", "Check if the bot is logged in to Claude"),
     ]
     await application.bot.set_my_commands(commands)
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)
 
 
 app = (

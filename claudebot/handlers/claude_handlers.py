@@ -9,6 +9,7 @@ from telegram.ext import (
     ContextTypes,
 )
 from claudebot.tools.claude import Claude
+from claudebot.tools.logger import log_claude_response
 from claudebot.tools.shell import run_command
 from claudebot.settings import settings
 from claudebot.tools.auth import authenticated
@@ -75,6 +76,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             resp or "No response received from Claude.",
             parse_mode="Markdown",
         )
+        await log_claude_response(update.message.message_id, ctx.current_project, resp)
     else:
         await send_message(update, context, "No message found.")
 
