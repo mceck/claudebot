@@ -7,6 +7,7 @@ packages = [{include = "app"}]
 requires-python = ">=3.12"
 dependencies = [
     "httpx>=0.28.1",
+    "inflection>=0.5.1",
     "psycopg>=3.3.3",
     "pydantic-settings>=2.13.1",
     "python-telegram-bot>=22.6",

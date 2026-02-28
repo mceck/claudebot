@@ -1,6 +1,7 @@
 import asyncio
-import json
 import shlex
+
+from claudebot.tools.json_models import ClaudeAuthResponse
 from claudebot.tools.shell import run_command
 from claudebot.settings import settings
 
@@ -20,9 +21,8 @@ class Claude:
         )
         if ret_code != 0:
             raise Exception(f"Failed to check login status: {output}")
-        decoded = json.loads(output)
-        logged = decoded.get("loggedIn", False)
-        return logged
+        return ClaudeAuthResponse.model_validate_json(output)
+        
 
     async def send(
         self, message: str, resume_session: bool = False, plan_mode: bool = False
