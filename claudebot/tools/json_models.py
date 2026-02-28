@@ -10,8 +10,8 @@ class CamelcaseModel(BaseModel):
 
 class ClaudeAuthResponse(CamelcaseModel):
     logged_in: bool
-    email: str
+    email: str | None = None
     auth_method: str
-    org_id: str
+    org_id: str | None = None
     org_name: str | None = None
-    subscription_type: str
+    subscription_type: str | None = None

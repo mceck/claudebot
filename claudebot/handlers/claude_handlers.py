@@ -41,7 +41,7 @@ async def process_claude_prompt(message: str):
 async def check_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     resp = await Claude.check_login()
     if resp.logged_in:
-        await send_message(update, context, f"You are logged in to Claude with email: *{resp.email}*", parse_mode="Markdown")
+        await send_message(update, context, f"You are logged in to Claude with: *{resp.email or resp.auth_method}*", parse_mode="Markdown")
     else:
         await send_message(
             update,
