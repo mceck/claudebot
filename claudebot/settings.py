@@ -7,7 +7,7 @@ class AppSettings(BaseSettings):
     PROJECTS_DIR: str = "projects"
     TELEGRAM_BOT_TOKEN: str = "xxx"
     ALLOWED_USER_IDS: list[int] = []
-    DATABASE_URL: str = "postgresql+psycopg://localhost:5432/claudebot"
+    DATABASE_URL: str | None = None
     MODEL: str = "opus"
     EFFORT: str = "high"
     MISTRAL_API_KEY: str = ""
