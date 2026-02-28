@@ -1,28 +1,49 @@
 # ClaudeBot 🤖
 
-A Telegram bot that provides a seamless interface to interact with Claude AI and manage development projects. Control Claude sessions, execute git operations, and manage multiple projects directly from Telegram.
+A Telegram bot that provides a seamless interface to interact with Claude Code and manage development projects in a local environment. Control Claude Code sessions, execute git operations, and manage multiple projects directly from Telegram.
 
 ## ✨ Features
 
-- **Claude AI Integration**: Send messages to Claude and receive responses directly in Telegram
+- **Claude Code Integration**: Send messages to Claude Code and receive responses directly in Telegram
 - **Project Management**: Switch between multiple projects seamlessly
 - **Authentication**: Secure access control with user ID whitelisting
 
 ## 🚀 Installation
 
-### Using Docker
+#### Telegram Bot Token
+Create a new bot using [BotFather](https://t.me/BotFather) and obtain the Telegram Bot Token.
 
-Check the `docker-compose.example.yml` file for an example of how to set up the bot with Docker.
-
-### Getting Your Telegram User ID
+#### Getting Your Telegram User ID
 
 1. Start a chat with [@userinfobot](https://t.me/userinfobot)
 2. Send any message
 3. Copy the ID and add it to `ALLOWED_USER_IDS`
 
-### Claude CLI OAuth Token
+#### Voice messages
 
-The bot requires the Claude CLI OAuth token for authentication. You can get it by running:
+To enable voice message transcription, you need to obtain an API key for Mistral API and set the `MISTRAL_API_KEY` environment variable.
+
+### Local Setup
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   uv sync
+   ```
+3. Set environment variables:
+    - Create a `.env` file based on `.env.example` and fill in the required values (Telegram Bot Token, Allowed User IDs, etc.)
+4. Install and login to the Claude Code CLI
+5. Run the bot:
+   ```bash
+   uv run python main.py
+   ```
+
+### Using Docker
+
+Check the `docker-compose.example.yml` file for an example of how to set up the bot with Docker.
+
+#### Claude OAuth Token
+
+If you run it on Docker, the bot requires a Claude OAuth token for authentication. You can get it by running:
 
 ```bash
 claude setup-token
@@ -30,12 +51,10 @@ claude setup-token
 
 passing the obtained token as an environment variable `CLAUDE_CLI_OAUTH_TOKEN` when running the bot.
 
-### Telegram Bot Token
-Create a new bot using [BotFather](https://t.me/BotFather) and obtain the Telegram Bot Token.
 
-### Github Repository Access
+#### Github Repository Access
 
-To enable git operations and access to your repositories: 
+If you run it on Docker, you may want to give the bot access to your GitHub repositories to enable git operations. You can create a deploy key in your GitHub repository and mount the corresponding private SSH key into the container. Then, set the `GIT_SSH_COMMAND` environment variable to use that key for git operations. For example:
 You can create a deploy key in your GitHub repository and mount the corresponding private SSH key into the container. Then, set the `GIT_SSH_COMMAND` environment variable to use that key for git operations. For example:
 ```
 GIT_SSH_COMMAND="ssh -i /home/appuser/.ssh/git"
@@ -58,13 +77,13 @@ GIT_COMMITTER_EMAIL=xxx
 - `/select` - Select or list available projects
 - `/current` - Show currently selected project and branch
 
-### Claude Interaction
+### Claude Code Interaction
 
-- **Regular message** - Send message to Claude (resumes session)
-- **`!message`** - Start fresh Claude session (doesn't resume)
+- **Regular message** - Send message to Claude Code (resumes session)
+- **`!message`** - Start fresh Claude Code session (doesn't resume)
 - **`?message`** - Use plan mode (analyze without executing)
-- `/kill` - Terminate the current Claude session
-- `/checklogin` - Verify Claude CLI authentication status
+- `/kill` - Terminate the current Claude Code session
+- `/checklogin` - Verify Claude Code CLI authentication status
 
 ### Git Operations
 
