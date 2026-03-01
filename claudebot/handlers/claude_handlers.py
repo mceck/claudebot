@@ -331,10 +331,11 @@ async def show_scheduled_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE
             message_text = job.args[1]
             project_name = job.args[2]
             message_preview = message_text[:30] + "..." if len(message_text) > 30 else message_text
+            message_preview = message_preview.replace("\n", " ")
         
         message_lines.append(f"• *Project:* {project_name}")
         message_lines.append(f"   *Message:* _{message_preview}_")
-        message_lines.append(f"   *Time:* {run_time}\n")
+        message_lines.append(f"   *When:* {run_time}\n")
     await send_message(update, context, "\n".join(message_lines), parse_mode="Markdown")
 
 @authenticated
