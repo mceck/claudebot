@@ -46,12 +46,6 @@ async def process_claude_prompt_and_answer(chat_id: int, message: str, project: 
         raise ValueError("No project selected. Please select a project using /select.")
     resp = await process_claude_prompt(message, current_project)
     reply_markup = None
-    await send_direct_message(
-        chat_id,
-        resp or "No response received from Claude.",
-        parse_mode="Markdown",
-        reply_markup=reply_markup
-    )
     if "You've hit your limit" in resp:
         ts_match = re.search(r"resets (\d+)(am|pm)", resp, re.IGNORECASE)
         if ts_match:
@@ -70,6 +64,12 @@ async def process_claude_prompt_and_answer(chat_id: int, message: str, project: 
             reply_markup = InlineKeyboardMarkup(
                 [[InlineKeyboardButton("Schedule continue", callback_data=f"schedule_continue_{time_str}")]]
             )
+    await send_direct_message(
+        chat_id,
+        resp or "No response received from Claude.",
+        parse_mode="Markdown",
+        reply_markup=reply_markup
+    )
     await log_claude_response(current_project, resp)
 
     return resp

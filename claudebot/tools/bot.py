@@ -47,11 +47,11 @@ app = (
     .build()
 )
 
+MAX_MESSAGE_LENGTH = 4096
+
 async def send_message(
     update: Update, context: ContextTypes.DEFAULT_TYPE, message: str, **kwargs
 ):
-    MAX_MESSAGE_LENGTH = 4096
-
     if len(message) > MAX_MESSAGE_LENGTH:
         truncate_length = (MAX_MESSAGE_LENGTH - 10) // 2
         message = message[:truncate_length] + "\n...\n" + message[-truncate_length:]
@@ -65,10 +65,9 @@ async def send_message(
     return await update.message.reply_text(message, **kwargs)
 
 async def send_direct_message(chat_id: int, message: str, **kwargs):
-    MAX_MESSAGE_LENGTH = 4096
-
     if len(message) > MAX_MESSAGE_LENGTH:
         truncate_length = (MAX_MESSAGE_LENGTH - 10) // 2
         message = message[:truncate_length] + "\n...\n" + message[-truncate_length:]
 
+    print(f"Sending message to chat {chat_id}\n")
     return await app.bot.send_message(chat_id=chat_id, text=message, **kwargs)
