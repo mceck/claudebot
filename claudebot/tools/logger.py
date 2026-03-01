@@ -39,7 +39,7 @@ if settings.DATABASE_URL:
         chat_type: Mapped[str | None]
         forwarded_origin: Mapped[str | None]
         web_app_data: Mapped[str | None]
-        message_id: Mapped[int | None] = mapped_column(BigInteger)
+        message_id: Mapped[int | None] 
         message: Mapped[str | None] = mapped_column(Text)
         timestamp: Mapped[datetime | None]
         created_at: Mapped[datetime] = mapped_column(
@@ -54,7 +54,6 @@ if settings.DATABASE_URL:
 
         id: Mapped[int] = mapped_column(primary_key=True)
         project: Mapped[str | None]
-        message_id: Mapped[int | None]
         response: Mapped[str | None] = mapped_column(Text)
         created_at: Mapped[DateTime] = mapped_column(
             DateTime(timezone=True),
@@ -87,9 +86,8 @@ if settings.DATABASE_URL:
             session.add(logged_message)
             await session.commit()
 
-    async def log_claude_response(message_id: int, project: str, response: str) -> None:
+    async def log_claude_response(project: str, response: str) -> None:
         logged_response = ClaudeResponseLog(
-            message_id=message_id,
             project=project,
             response=response,
         )
@@ -121,5 +119,5 @@ else:
         
         logging.info(f"Received message:\n{json.dumps(log_data, indent=2)}")
 
-    async def log_claude_response(message_id: int, project: str, response: str) -> None:
-        logging.info(f"Claude response for message {message_id} in project {project}:\n{response}")
+    async def log_claude_response(project: str, response: str) -> None:
+        logging.info(f"Claude response for project {project}:\n{response}")

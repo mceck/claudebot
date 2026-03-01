@@ -70,7 +70,7 @@ async def process_claude_prompt_and_answer(chat_id: int, message: str, project: 
             reply_markup = InlineKeyboardMarkup(
                 [[InlineKeyboardButton("Schedule continue", callback_data=f"schedule_continue_{time_str}")]]
             )
-    await log_claude_response(chat_id, current_project, resp)
+    await log_claude_response(current_project, resp)
 
     return resp
 
