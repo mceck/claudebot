@@ -1,7 +1,7 @@
 from telegram import Update
 from telegram.ext import ContextTypes
 from claudebot.settings import settings
-from claudebot.tools.messages import send_message
+from claudebot.tools.bot import send_message
 from claudebot.tools.logger import log
 
 

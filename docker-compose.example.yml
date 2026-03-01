@@ -18,4 +18,5 @@ services:
     volumes:
       - /your/local/projects:/home/codespace/claudebot/ws # Mount your local projects directory
       - /your/local/gitssh:/home/codespace/.ssh:ro # Mount your git SSH keys for git access
+      - /your/local/jobs.sqlite:/home/codespace/claudebot/jobs.sqlite # Mount a local file for scheduled job persistence
     restart: always

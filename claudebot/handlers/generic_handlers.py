@@ -10,7 +10,7 @@ from telegram.error import NetworkError, BadRequest, TimedOut
 from claudebot.tools.shell import run_command
 from claudebot.settings import settings
 from claudebot.tools.auth import authenticated
-from claudebot.tools.messages import send_message
+from claudebot.tools.bot import send_message
 from claudebot.tools.context import ctx
 
 
