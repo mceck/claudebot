@@ -84,6 +84,9 @@ GIT_COMMITTER_EMAIL=xxx
 - **`?message`** - Use plan mode (analyze without executing)
 - `/kill` - Terminate the current Claude Code session
 - `/checklogin` - Verify Claude Code CLI authentication status
+- `/schedule <hh[:mm]> <message>` - Schedule a message to be sent to Claude after a specified time (use 24h format)
+- `/showjobs` - Show scheduled messages
+- `/deljob` - Delete a scheduled message
 
 ### Git Operations
 
