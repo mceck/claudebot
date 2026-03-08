@@ -50,7 +50,7 @@ wheels = [
 ]
 
 [[package]]
-name = "claudebot"
+name = "codebot"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

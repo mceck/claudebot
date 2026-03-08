@@ -1,6 +1,6 @@
 FROM mcr.microsoft.com/devcontainers/universal:noble
 USER codespace
-WORKDIR /home/codespace/claudebot
+WORKDIR /home/codespace/codebot
 ENV PYTHONUNBUFFERED=1
 RUN curl -fsSL https://claude.ai/install.sh | bash
 RUN curl https://sh.rustup.rs -sSf | sh -s -- -y

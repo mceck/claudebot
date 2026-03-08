@@ -1,9 +1,9 @@
 import asyncio
 import shlex
 
-from claudebot.tools.json_models import ClaudeAuthResponse
-from claudebot.tools.shell import run_command
-from claudebot.settings import settings
+from codebot.tools.json_models import ClaudeAuthResponse
+from codebot.tools.shell import run_command
+from codebot.settings import settings
 
 
 class Claude:

@@ -1,9 +1,9 @@
 import logging
 import json
 from datetime import datetime
-from claudebot.settings import settings
+from codebot.settings import settings
 from telegram import Update
-from claudebot.tools.context import ctx
+from codebot.tools.context import ctx
 
 logging.basicConfig(level=logging.INFO)
 
@@ -23,8 +23,8 @@ if settings.DATABASE_URL:
 
     Base = declarative_base()
 
-    class ClaudebotLog(Base):
-        __tablename__ = "claudebot_logs"
+    class codebotLog(Base):
+        __tablename__ = "codebot_logs"
 
         id: Mapped[int] = mapped_column(primary_key=True)
         project: Mapped[str | None]
@@ -66,7 +66,7 @@ if settings.DATABASE_URL:
         user = update.effective_user
         chat = update.effective_chat
         msg = update.effective_message
-        logged_message = ClaudebotLog(
+        logged_message = codebotLog(
             project=ctx.current_project,
             user_id=user.id if user else None,
             username=user.username if user else None,

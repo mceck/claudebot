@@ -5,11 +5,11 @@ from telegram import (
     InlineKeyboardMarkup,
 )
 from telegram.ext import ContextTypes
-from claudebot.tools.shell import run_command
-from claudebot.settings import settings
-from claudebot.tools.auth import authenticated
-from claudebot.tools.bot import send_message
-from claudebot.tools.context import ctx
+from codebot.tools.shell import run_command
+from codebot.settings import settings
+from codebot.tools.auth import authenticated
+from codebot.tools.bot import send_message
+from codebot.tools.context import ctx
 
 
 @authenticated
@@ -206,7 +206,7 @@ async def git_push(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if ret_add != 0:
         print(f"Git add failed with code {ret_add}:\n{output_add}")
     ret_commit, output_commit = await run_command(
-        'git commit -m "Update from ClaudeBot"', cwd=project_path
+        'git commit -m "Update from codebot"', cwd=project_path
     )
     if ret_commit != 0:
         print(f"Git commit failed with code {ret_commit}:\n{output_commit}")

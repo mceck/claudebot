@@ -7,11 +7,11 @@ from telegram import (
 )
 from telegram.ext import ContextTypes
 from telegram.error import NetworkError, BadRequest, TimedOut
-from claudebot.tools.shell import run_command
-from claudebot.settings import settings
-from claudebot.tools.auth import authenticated
-from claudebot.tools.bot import send_message
-from claudebot.tools.context import ctx
+from codebot.tools.shell import run_command
+from codebot.settings import settings
+from codebot.tools.auth import authenticated
+from codebot.tools.bot import send_message
+from codebot.tools.context import ctx
 
 
 @authenticated
@@ -19,7 +19,7 @@ async def greet_user(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
     await send_message(
         update,
         context,
-        "Hello! I am ClaudeBot, your assistant for managing Claude sessions and projects. Use /select to choose a project to work on.",
+        "Hello! I am codebot, your assistant for managing Claude sessions and projects. Use /select to choose a project to work on.",
     )
 
 

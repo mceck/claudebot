@@ -11,15 +11,15 @@ from telegram.ext import (
     ContextTypes,
 )
 from apscheduler.triggers.date import DateTrigger
-from claudebot.tools.claude import Claude
-from claudebot.tools.logger import log_claude_response
-from claudebot.tools.shell import run_command
-from claudebot.settings import settings
-from claudebot.tools.auth import authenticated
-from claudebot.tools.bot import send_message
-from claudebot.tools.context import ctx
-from claudebot.tools.scheduler import scheduler
-from claudebot.tools.bot import send_direct_message
+from codebot.tools.claude import Claude
+from codebot.tools.logger import log_claude_response
+from codebot.tools.shell import run_command
+from codebot.settings import settings
+from codebot.tools.auth import authenticated
+from codebot.tools.bot import send_message
+from codebot.tools.context import ctx
+from codebot.tools.scheduler import scheduler
+from codebot.tools.bot import send_direct_message
 
 
 

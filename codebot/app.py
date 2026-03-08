@@ -4,15 +4,15 @@ from telegram.ext import (
     CallbackQueryHandler,
     filters,
 )
-from claudebot.tools.bot import app
-from claudebot.handlers.generic_handlers import (
+from codebot.tools.bot import app
+from codebot.handlers.generic_handlers import (
     greet_user,
     pick_project,
     get_current_project,
     select_project,
     error_handler,
 )
-from claudebot.handlers.git_handlers import (
+from codebot.handlers.git_handlers import (
     select_branch_for_checkout,
     git_status,
     git_diff,
@@ -23,7 +23,7 @@ from claudebot.handlers.git_handlers import (
     git_checkout,
     git_delete_branch,
 )
-from claudebot.handlers.claude_handlers import (
+from codebot.handlers.claude_handlers import (
     check_login,
     message_handler,
     kill_claude,

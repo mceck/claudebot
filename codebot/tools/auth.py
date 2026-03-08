@@ -1,8 +1,8 @@
 from telegram import Update
 from telegram.ext import ContextTypes
-from claudebot.settings import settings
-from claudebot.tools.bot import send_message
-from claudebot.tools.logger import log
+from codebot.settings import settings
+from codebot.tools.bot import send_message
+from codebot.tools.logger import log
 
 
 async def check_user(context: ContextTypes.DEFAULT_TYPE) -> bool:

@@ -1,4 +1,4 @@
-# ClaudeBot 🤖
+# Codebot 🤖
 
 A Telegram bot that provides a seamless interface to interact with Claude Code and manage development projects in a local environment. Control Claude Code sessions, execute git operations, and manage multiple projects directly from Telegram.
 
@@ -63,9 +63,9 @@ GIT_SSH_COMMAND="ssh -i /home/appuser/.ssh/git"
 You also need to set the git author and committer information using the following environment variables:
 
 ```
-GIT_AUTHOR_NAME=claudebot
+GIT_AUTHOR_NAME=codebot
 GIT_AUTHOR_EMAIL=xxx
-GIT_COMMITTER_NAME=claudebot
+GIT_COMMITTER_NAME=codebot
 GIT_COMMITTER_EMAIL=xxx
 ```
 

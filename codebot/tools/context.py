@@ -1,4 +1,4 @@
-from claudebot.tools.claude import Claude
+from codebot.tools.claude import Claude
 
 class Context:
     def __init__(self):

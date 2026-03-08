@@ -1,8 +1,8 @@
 from telegram import BotCommand, Update
 from telegram.ext import ApplicationBuilder, ContextTypes
 
-from claudebot.settings import settings
-from claudebot.tools.scheduler import scheduler
+from codebot.settings import settings
+from codebot.tools.scheduler import scheduler
 
 async def setup_commands(application):
     """Set up bot commands for autocomplete"""
@@ -33,7 +33,7 @@ async def setup_commands(application):
     scheduler.start()
 
     if settings.DATABASE_URL:
-        from claudebot.tools.logger import Base, engine
+        from codebot.tools.logger import Base, engine
 
         async with engine.begin() as conn:
             await conn.run_sync(Base.metadata.create_all)
