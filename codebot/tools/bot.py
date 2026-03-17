@@ -1,4 +1,4 @@
-from telegram import BotCommand, Update
+from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ApplicationBuilder, ContextTypes
 
 from codebot.settings import settings
@@ -48,6 +48,13 @@ app = (
 )
 
 MAX_MESSAGE_LENGTH = 4096
+
+def build_keyboard(buttons: list[InlineKeyboardButton]) -> InlineKeyboardMarkup:
+    if len(buttons) > 4:
+        keyboard = [buttons[i:i + 2] for i in range(0, len(buttons), 2)]
+    else:
+        keyboard = [[b] for b in buttons]
+    return InlineKeyboardMarkup(keyboard)
 
 async def send_message(
     update: Update, context: ContextTypes.DEFAULT_TYPE, message: str, **kwargs

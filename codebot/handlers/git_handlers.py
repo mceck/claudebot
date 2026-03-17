@@ -2,13 +2,12 @@ import os
 from telegram import (
     Update,
     InlineKeyboardButton,
-    InlineKeyboardMarkup,
 )
 from telegram.ext import ContextTypes
 from codebot.tools.shell import run_command
 from codebot.settings import settings
 from codebot.tools.auth import authenticated
-from codebot.tools.bot import send_message
+from codebot.tools.bot import send_message, build_keyboard
 from codebot.tools.context import ctx
 
 
@@ -177,11 +176,10 @@ async def git_push(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await send_message(update, context, "No branches found in the repository.")
             return
 
-        keyboard = [
-            [InlineKeyboardButton(branch, callback_data=f"gpush_{branch}")]
+        reply_markup = build_keyboard([
+            InlineKeyboardButton(branch, callback_data=f"gpush_{branch}")
             for branch in branches
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        ])
         await send_message(
             update, context, "Select branch to push:", reply_markup=reply_markup
         )
@@ -283,11 +281,10 @@ async def git_checkout(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             await send_message(update, context, "No branches found in the repository.")
             return
 
-        keyboard = [
-            [InlineKeyboardButton(branch, callback_data=f"gco_{branch}")]
+        reply_markup = build_keyboard([
+            InlineKeyboardButton(branch, callback_data=f"gco_{branch}")
             for branch in branches
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        ])
         await send_message(
             update, context, "Select branch to checkout:", reply_markup=reply_markup
         )
@@ -354,11 +351,10 @@ async def git_delete_branch(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             await send_message(update, context, "No branches available for deletion.")
             return
 
-        keyboard = [
-            [InlineKeyboardButton(branch, callback_data=f"gdel_{branch}")]
+        reply_markup = build_keyboard([
+            InlineKeyboardButton(branch, callback_data=f"gdel_{branch}")
             for branch in branches
-        ]
-        reply_markup = InlineKeyboardMarkup(keyboard)
+        ])
         await send_message(
             update, context, "Select branch to delete:", reply_markup=reply_markup
         )

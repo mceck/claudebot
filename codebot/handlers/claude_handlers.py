@@ -16,7 +16,7 @@ from codebot.tools.logger import log_claude_response
 from codebot.tools.shell import run_command
 from codebot.settings import settings
 from codebot.tools.auth import authenticated
-from codebot.tools.bot import send_message
+from codebot.tools.bot import send_message, build_keyboard
 from codebot.tools.context import ctx
 from codebot.tools.scheduler import scheduler
 from codebot.tools.bot import send_direct_message
@@ -131,11 +131,10 @@ async def kill_claude(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await send_message(update, context, "No active Claude sessions to kill.")
         return
 
-    keyboard = [
-        [InlineKeyboardButton(proj, callback_data=f"kill_{proj}")]
+    reply_markup = build_keyboard([
+        InlineKeyboardButton(proj, callback_data=f"kill_{proj}")
         for proj in active_sessions
-    ]
-    reply_markup = InlineKeyboardMarkup(keyboard)
+    ])
     await send_message(update, context, "Select a session to kill:", reply_markup=reply_markup)
 
 
@@ -383,11 +382,11 @@ async def delete_scheduled_job(update: Update, context: ContextTypes.DEFAULT_TYP
         project_name = ""
         if job.args and len(job.args) >= 3:
             project_name = job.args[2]
-        
+
         button_label = f"{project_name} - {run_time}" if project_name else f"{run_time}"
-        buttons.append([InlineKeyboardButton(button_label, callback_data=f"delete_schedule_{job.id}")])
-    
-    reply_markup = InlineKeyboardMarkup(buttons)
+        buttons.append(InlineKeyboardButton(button_label, callback_data=f"delete_schedule_{job.id}"))
+
+    reply_markup = build_keyboard(buttons)
     await send_message(update, context, "\n".join(message_lines), parse_mode="Markdown", reply_markup=reply_markup)
 
 @authenticated

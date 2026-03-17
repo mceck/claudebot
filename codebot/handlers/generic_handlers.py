@@ -3,14 +3,13 @@ import traceback
 from telegram import (
     Update,
     InlineKeyboardButton,
-    InlineKeyboardMarkup,
 )
 from telegram.ext import ContextTypes
 from telegram.error import NetworkError, BadRequest, TimedOut
 from codebot.tools.shell import run_command
 from codebot.settings import settings
 from codebot.tools.auth import authenticated
-from codebot.tools.bot import send_message
+from codebot.tools.bot import send_message, build_keyboard
 from codebot.tools.context import ctx
 
 
@@ -34,15 +33,12 @@ async def pick_project(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
             and not d.startswith("_")
         ]
         if projects:
-            keyboard = [
-                [
-                    InlineKeyboardButton(
-                        project, callback_data=f"selectproject_{project}"
-                    )
-                ]
+            reply_markup = build_keyboard([
+                InlineKeyboardButton(
+                    project, callback_data=f"selectproject_{project}"
+                )
                 for project in projects
-            ]
-            reply_markup = InlineKeyboardMarkup(keyboard)
+            ])
             await send_message(
                 update, context, "Pick a project:", reply_markup=reply_markup
             )
