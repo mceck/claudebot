@@ -1,4 +1,6 @@
 import asyncio
+import os
+import signal
 import shlex
 
 from codebot.tools.json_models import ClaudeAuthResponse
@@ -43,6 +45,7 @@ class Claude:
             cwd=self.cwd,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            start_new_session=True,
         )
         stdout, stderr = await self.process.communicate()
         if stderr:
@@ -54,6 +57,12 @@ class Claude:
 
     async def kill(self):
         if self.process:
-            self.process.kill()
-            await self.process.wait()
+            try:
+                os.killpg(os.getpgid(self.process.pid), signal.SIGKILL)
+            except (ProcessLookupError, OSError):
+                pass
+            try:
+                await asyncio.wait_for(self.process.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                pass
             self.process = None
