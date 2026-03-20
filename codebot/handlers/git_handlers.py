@@ -138,7 +138,17 @@ async def git_clone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             update, context, f"Git clone failed with code {ret_code}:\n{output}"
         )
     else:
-        await send_message(update, context, f"Git clone successful:\n{output}")
+        repo_name = repo_url.rstrip("/").split("/")[-1].removesuffix(".git")
+        reply_markup = build_keyboard([
+            InlineKeyboardButton(
+                f"📂 Select {repo_name}",
+                callback_data=f"selectproject_{repo_name}",
+            )
+        ])
+        await send_message(
+            update, context, f"Git clone successful:\n{output}",
+            reply_markup=reply_markup,
+        )
 
 
 @authenticated
