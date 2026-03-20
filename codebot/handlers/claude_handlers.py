@@ -32,10 +32,12 @@ async def process_claude_prompt(message: str, project: str):
     plan_mode = message.startswith("?")
     if plan_mode:
         message = message[1:]
-    ret, resp = await claude_session.send(
-        message, resume_session=resume_session, plan_mode=plan_mode
-    )
-    ctx.claude_sessions.pop(project, None)
+    try:
+        ret, resp = await claude_session.send(
+            message, resume_session=resume_session, plan_mode=plan_mode
+        )
+    finally:
+        ctx.claude_sessions.pop(project, None)
     if ret != 0:
         print(f"Claude process exited with code {ret}")
     return resp.strip()

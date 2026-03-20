@@ -1,4 +1,5 @@
 from telegram import BotCommand, InlineKeyboardButton, InlineKeyboardMarkup, Update
+from telegram.error import BadRequest
 from telegram.ext import ApplicationBuilder, ContextTypes
 
 from codebot.settings import settings
@@ -63,13 +64,26 @@ async def send_message(
         truncate_length = (MAX_MESSAGE_LENGTH - 10) // 2
         message = message[:truncate_length] + "\n...\n" + message[-truncate_length:]
 
-    if not update.message:
-        if not update.effective_chat:
-            return
-        return await context.bot.send_message(
-            chat_id=update.effective_chat.id, text=message, **kwargs
-        )
-    return await update.message.reply_text(message, **kwargs)
+    try:
+        if not update.message:
+            if not update.effective_chat:
+                return
+            return await context.bot.send_message(
+                chat_id=update.effective_chat.id, text=message, **kwargs
+            )
+        return await update.message.reply_text(message, **kwargs)
+    except BadRequest:
+        if "parse_mode" not in kwargs:
+            raise
+        kwargs.pop("parse_mode")
+        print("Retrying message without parse_mode due to BadRequest")
+        if not update.message:
+            if not update.effective_chat:
+                return
+            return await context.bot.send_message(
+                chat_id=update.effective_chat.id, text=message, **kwargs
+            )
+        return await update.message.reply_text(message, **kwargs)
 
 async def send_direct_message(chat_id: int, message: str, **kwargs):
     if len(message) > MAX_MESSAGE_LENGTH:
@@ -77,4 +91,11 @@ async def send_direct_message(chat_id: int, message: str, **kwargs):
         message = message[:truncate_length] + "\n...\n" + message[-truncate_length:]
 
     print(f"Sending message to chat {chat_id}\n")
-    return await app.bot.send_message(chat_id=chat_id, text=message, **kwargs)
+    try:
+        return await app.bot.send_message(chat_id=chat_id, text=message, **kwargs)
+    except BadRequest:
+        if "parse_mode" not in kwargs:
+            raise
+        kwargs.pop("parse_mode")
+        print("Retrying message without parse_mode due to BadRequest")
+        return await app.bot.send_message(chat_id=chat_id, text=message, **kwargs)
