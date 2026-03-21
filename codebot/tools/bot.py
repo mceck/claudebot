@@ -49,6 +49,26 @@ app = (
 )
 
 MAX_MESSAGE_LENGTH = 4096
+MAX_TOTAL_LENGTH = 40000  # above this, last chunk gets truncated
+
+def _split_message(message: str) -> list[str]:
+    """Split a message into chunks of MAX_MESSAGE_LENGTH, respecting newlines."""
+    if len(message) <= MAX_MESSAGE_LENGTH:
+        return [message]
+
+    if len(message) > MAX_TOTAL_LENGTH:
+        message = message[:MAX_TOTAL_LENGTH]
+
+    chunks = []
+    while len(message) > MAX_MESSAGE_LENGTH:
+        split_at = message.rfind("\n", 0, MAX_MESSAGE_LENGTH)
+        if split_at == -1 or split_at < MAX_MESSAGE_LENGTH // 2:
+            split_at = MAX_MESSAGE_LENGTH
+        chunks.append(message[:split_at])
+        message = message[split_at:].lstrip("\n")
+    if message:
+        chunks.append(message)
+    return chunks
 
 def build_keyboard(buttons: list[InlineKeyboardButton]) -> InlineKeyboardMarkup:
     if len(buttons) > 3:
@@ -57,45 +77,53 @@ def build_keyboard(buttons: list[InlineKeyboardButton]) -> InlineKeyboardMarkup:
         keyboard = [[b] for b in buttons]
     return InlineKeyboardMarkup(keyboard)
 
+async def _do_send(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str, **kwargs):
+    """Send a single message chunk, retrying without parse_mode on BadRequest."""
+    try:
+        if not update.message:
+            if not update.effective_chat:
+                return
+            return await context.bot.send_message(
+                chat_id=update.effective_chat.id, text=text, **kwargs
+            )
+        return await update.message.reply_text(text, **kwargs)
+    except BadRequest:
+        if "parse_mode" not in kwargs:
+            raise
+        kwargs.pop("parse_mode")
+        print("Retrying message without parse_mode due to BadRequest")
+        if not update.message:
+            if not update.effective_chat:
+                return
+            return await context.bot.send_message(
+                chat_id=update.effective_chat.id, text=text, **kwargs
+            )
+        return await update.message.reply_text(text, **kwargs)
+
 async def send_message(
     update: Update, context: ContextTypes.DEFAULT_TYPE, message: str, **kwargs
 ):
-    if len(message) > MAX_MESSAGE_LENGTH:
-        truncate_length = (MAX_MESSAGE_LENGTH - 10) // 2
-        message = message[:truncate_length] + "\n...\n" + message[-truncate_length:]
+    chunks = _split_message(message)
+    result = None
+    for chunk in chunks:
+        result = await _do_send(update, context, chunk, **kwargs)
+    return result
 
+async def _do_send_direct(chat_id: int, text: str, **kwargs):
+    """Send a single direct message chunk, retrying without parse_mode on BadRequest."""
     try:
-        if not update.message:
-            if not update.effective_chat:
-                return
-            return await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=message, **kwargs
-            )
-        return await update.message.reply_text(message, **kwargs)
+        return await app.bot.send_message(chat_id=chat_id, text=text, **kwargs)
     except BadRequest:
         if "parse_mode" not in kwargs:
             raise
         kwargs.pop("parse_mode")
         print("Retrying message without parse_mode due to BadRequest")
-        if not update.message:
-            if not update.effective_chat:
-                return
-            return await context.bot.send_message(
-                chat_id=update.effective_chat.id, text=message, **kwargs
-            )
-        return await update.message.reply_text(message, **kwargs)
+        return await app.bot.send_message(chat_id=chat_id, text=text, **kwargs)
 
 async def send_direct_message(chat_id: int, message: str, **kwargs):
-    if len(message) > MAX_MESSAGE_LENGTH:
-        truncate_length = (MAX_MESSAGE_LENGTH - 10) // 2
-        message = message[:truncate_length] + "\n...\n" + message[-truncate_length:]
-
     print(f"Sending message to chat {chat_id}\n")
-    try:
-        return await app.bot.send_message(chat_id=chat_id, text=message, **kwargs)
-    except BadRequest:
-        if "parse_mode" not in kwargs:
-            raise
-        kwargs.pop("parse_mode")
-        print("Retrying message without parse_mode due to BadRequest")
-        return await app.bot.send_message(chat_id=chat_id, text=message, **kwargs)
+    chunks = _split_message(message)
+    result = None
+    for chunk in chunks:
+        result = await _do_send_direct(chat_id, chunk, **kwargs)
+    return result

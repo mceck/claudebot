@@ -126,8 +126,6 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
     try:
         if isinstance(update, Update) and update.effective_message:
-            MAX_MSG_LEN = 4000
-
             error_type = type(context.error).__name__ if context.error else "Unknown"
             error_str = str(context.error) if context.error else "No details"
 
@@ -142,17 +140,8 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
                 error_message += "\nThe request timed out. Please try again."
 
             if context.error and context.error.__traceback__:
-                error_message += "\n\nStacktrace:\n"
-                remaining = MAX_MSG_LEN - len(error_message) - 10
-                if remaining > 0:
-                    error_message += tb_string[-remaining:]
+                error_message += f"\n\nStacktrace:\n{tb_string}"
 
-            if len(error_message) > MAX_MSG_LEN:
-                error_message = error_message[:MAX_MSG_LEN]
-
-            if update.effective_chat:
-                await context.bot.send_message(
-                    chat_id=update.effective_chat.id, text=error_message
-                )
+            await send_message(update, context, error_message)
     except Exception as e:
         print(f"Failed to send error message to user: {e}")
