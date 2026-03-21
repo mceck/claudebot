@@ -126,19 +126,29 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
     try:
         if isinstance(update, Update) and update.effective_message:
+            MAX_MSG_LEN = 4000
+
+            error_type = type(context.error).__name__ if context.error else "Unknown"
+            error_str = str(context.error) if context.error else "No details"
+
             error_message = (
-                "An error occurred while processing your request.\n"
-                f"Error: {type(context.error).__name__}"
+                f"Error: {error_type}\n"
+                f"Details: {error_str}\n"
             )
 
             if isinstance(context.error, NetworkError):
-                error_message += (
-                    "\n\nThis appears to be a network issue. Please try again."
-                )
+                error_message += "\nThis appears to be a network issue. Please try again."
             elif isinstance(context.error, TimedOut):
-                error_message += "\n\nThe request timed out. Please try again."
-            elif isinstance(context.error, BadRequest):
-                error_message += f"\n\nDetails: {str(context.error)}"
+                error_message += "\nThe request timed out. Please try again."
+
+            if context.error and context.error.__traceback__:
+                error_message += "\n\nStacktrace:\n"
+                remaining = MAX_MSG_LEN - len(error_message) - 10
+                if remaining > 0:
+                    error_message += tb_string[-remaining:]
+
+            if len(error_message) > MAX_MSG_LEN:
+                error_message = error_message[:MAX_MSG_LEN]
 
             if update.effective_chat:
                 await context.bot.send_message(
