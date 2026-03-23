@@ -77,6 +77,13 @@ async def process_claude_prompt_and_answer(chat_id: int, message: str, project: 
     return resp
 
 
+async def scheduled_process_claude_prompt_and_answer(chat_id: int, message: str, project: str | None = None):
+    """Wrapper for scheduled jobs: sends a notification before processing."""
+    preview = message[:50] + "..." if len(message) > 50 else message
+    await send_direct_message(chat_id, f"⏰ Running scheduled task: _{preview}_", parse_mode="Markdown")
+    return await process_claude_prompt_and_answer(chat_id, message, project)
+
+
 @authenticated
 async def check_login(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     resp = await Claude.check_login()
@@ -250,6 +257,7 @@ async def transcription_to_claude_handler(
     if not update.callback_query.message:
         await send_message(update, context, "No message found to reply to.")
         return
+    await update.callback_query.edit_message_reply_markup(reply_markup=None)
     await send_message(update, context, "Processing message with Claude...")
     await process_claude_prompt_and_answer(update.callback_query.message.chat.id, transcription, ctx.current_project)
 
@@ -308,7 +316,7 @@ async def schedule_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
         scheduled_time += timedelta(days=1)
     
     scheduler.add_job(
-        process_claude_prompt_and_answer,
+        scheduled_process_claude_prompt_and_answer,
         trigger=DateTrigger(run_date=scheduled_time),
         args=[update.message.chat_id, message_to_send, ctx.current_project],
         id=f"scheduled_message_{update.message.message_id}",
@@ -358,17 +366,17 @@ async def schedule_continue_handler(update: Update, context: ContextTypes.DEFAUL
         if scheduled_time <= datetime.now():
             scheduled_time += timedelta(days=1)
     except ValueError:
-        await send_message(update, context, "Invalid time format in callback data.")
+        await update.callback_query.edit_message_text("Invalid time format in callback data.")
         return
-    
+
     scheduler.add_job(
-        process_claude_prompt_and_answer,
+        scheduled_process_claude_prompt_and_answer,
         trigger=DateTrigger(run_date=scheduled_time),
         args=[update.callback_query.message.chat.id, "continue", ctx.current_project],
         id=f"scheduled_message_{update.callback_query.message.message_id}",
         replace_existing=True,
     )
-    await send_message(update, context, f"Message scheduled to be sent at {scheduled_time.strftime('%H:%M on %Y-%m-%d')}.")
+    await update.callback_query.edit_message_text(f"Message scheduled to be sent at {scheduled_time.strftime('%H:%M on %Y-%m-%d')}.")
 
 @authenticated
 async def delete_scheduled_job(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -400,6 +408,6 @@ async def delete_scheduled_job_handler(update: Update, context: ContextTypes.DEF
     job_id = data.split("delete_schedule_")[-1]
     try:
         scheduler.remove_job(job_id)
-        await send_message(update, context, f"Scheduled job `{job_id}` deleted successfully.", parse_mode="Markdown")
+        await update.callback_query.edit_message_text(f"Scheduled job deleted successfully.")
     except Exception as e:
-        await send_message(update, context, f"Error deleting scheduled job `{job_id}`: {e}", parse_mode="Markdown")
+        await update.callback_query.edit_message_text(f"Error deleting scheduled job: {e}")

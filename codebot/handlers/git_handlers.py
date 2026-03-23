@@ -33,12 +33,14 @@ async def git_status(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None
         await send_message(
             update,
             context,
-            f"Git status failed with code {ret_code}:\n```\n{output}\n```",
+            output,
             parse_mode="Markdown",
+            chunk_wrap=("```\n", "\n```"),
         )
     else:
         await send_message(
-            update, context, f"```\n{output}\n```", parse_mode="Markdown"
+            update, context, output, parse_mode="Markdown",
+            chunk_wrap=("```\n", "\n```"),
         )
 
 
@@ -64,13 +66,15 @@ async def git_diff(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         await send_message(
             update,
             context,
-            f"Git diff failed with code {ret_code}:\n```\n{output}\n```",
+            output,
             parse_mode="Markdown",
+            chunk_wrap=("```\n", "\n```"),
         )
     else:
         if output.strip():
             await send_message(
-                update, context, f"```diff\n{output}\n```", parse_mode="Markdown"
+                update, context, output, parse_mode="Markdown",
+                chunk_wrap=("```diff\n", "\n```"),
             )
         else:
             await send_message(update, context, "No changes detected.")

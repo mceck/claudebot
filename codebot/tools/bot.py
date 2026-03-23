@@ -51,23 +51,35 @@ app = (
 MAX_MESSAGE_LENGTH = 4096
 MAX_TOTAL_LENGTH = 40000  # above this, last chunk gets truncated
 
-def _split_message(message: str) -> list[str]:
-    """Split a message into chunks of MAX_MESSAGE_LENGTH, respecting newlines."""
-    if len(message) <= MAX_MESSAGE_LENGTH:
-        return [message]
+def _split_message(message: str, chunk_wrap: tuple[str, str] | None = None) -> list[str]:
+    """Split a message into chunks of MAX_MESSAGE_LENGTH, respecting newlines.
+
+    If chunk_wrap is provided as (prefix, suffix), each chunk is wrapped individually.
+    """
+    if chunk_wrap:
+        prefix, suffix = chunk_wrap
+        wrap_overhead = len(prefix) + len(suffix)
+    else:
+        prefix, suffix = "", ""
+        wrap_overhead = 0
+
+    max_chunk = MAX_MESSAGE_LENGTH - wrap_overhead
+
+    if len(message) <= max_chunk:
+        return [f"{prefix}{message}{suffix}"] if chunk_wrap else [message]
 
     if len(message) > MAX_TOTAL_LENGTH:
         message = message[:MAX_TOTAL_LENGTH]
 
     chunks = []
-    while len(message) > MAX_MESSAGE_LENGTH:
-        split_at = message.rfind("\n", 0, MAX_MESSAGE_LENGTH)
-        if split_at == -1 or split_at < MAX_MESSAGE_LENGTH // 2:
-            split_at = MAX_MESSAGE_LENGTH
-        chunks.append(message[:split_at])
+    while len(message) > max_chunk:
+        split_at = message.rfind("\n", 0, max_chunk)
+        if split_at == -1 or split_at < max_chunk // 2:
+            split_at = max_chunk
+        chunks.append(f"{prefix}{message[:split_at]}{suffix}")
         message = message[split_at:].lstrip("\n")
     if message:
-        chunks.append(message)
+        chunks.append(f"{prefix}{message}{suffix}")
     return chunks
 
 def build_keyboard(buttons: list[InlineKeyboardButton]) -> InlineKeyboardMarkup:
@@ -101,9 +113,10 @@ async def _do_send(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str
         return await update.message.reply_text(text, **kwargs)
 
 async def send_message(
-    update: Update, context: ContextTypes.DEFAULT_TYPE, message: str, **kwargs
+    update: Update, context: ContextTypes.DEFAULT_TYPE, message: str,
+    chunk_wrap: tuple[str, str] | None = None, **kwargs
 ):
-    chunks = _split_message(message)
+    chunks = _split_message(message, chunk_wrap=chunk_wrap)
     result = None
     for chunk in chunks:
         result = await _do_send(update, context, chunk, **kwargs)
@@ -120,9 +133,10 @@ async def _do_send_direct(chat_id: int, text: str, **kwargs):
         print("Retrying message without parse_mode due to BadRequest")
         return await app.bot.send_message(chat_id=chat_id, text=text, **kwargs)
 
-async def send_direct_message(chat_id: int, message: str, **kwargs):
+async def send_direct_message(chat_id: int, message: str,
+                              chunk_wrap: tuple[str, str] | None = None, **kwargs):
     print(f"Sending message to chat {chat_id}\n")
-    chunks = _split_message(message)
+    chunks = _split_message(message, chunk_wrap=chunk_wrap)
     result = None
     for chunk in chunks:
         result = await _do_send_direct(chat_id, chunk, **kwargs)
