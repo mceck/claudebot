@@ -62,6 +62,23 @@ if settings.DATABASE_URL:
             server_default=func.now(),
         )
 
+    class ClaudeSessionEvent(Base):
+        __tablename__ = "claude_session_events"
+
+        id: Mapped[int] = mapped_column(primary_key=True)
+        session_uuid: Mapped[str]
+        claude_session_id: Mapped[str | None]
+        project: Mapped[str | None]
+        prompt: Mapped[str | None] = mapped_column(Text)
+        event_type: Mapped[str | None]
+        content: Mapped[str | None] = mapped_column(Text)
+        created_at: Mapped[datetime] = mapped_column(
+            DateTime(timezone=True),
+            nullable=False,
+            default=lambda: datetime.now().astimezone(),
+            server_default=func.now(),
+        )
+
     async def log(update: Update) -> None:
         user = update.effective_user
         chat = update.effective_chat
@@ -94,6 +111,70 @@ if settings.DATABASE_URL:
         async with Session() as session:
             session.add(logged_response)
             await session.commit()
+
+    async def log_session_event(session_uuid: str, claude_session_id: str | None,
+                                project: str, prompt: str, event_type: str, content: str) -> None:
+        event = ClaudeSessionEvent(
+            session_uuid=session_uuid,
+            claude_session_id=claude_session_id,
+            project=project,
+            prompt=prompt[:500] if prompt else None,
+            event_type=event_type,
+            content=content[:2000] if content else None,
+        )
+        async with Session() as session:
+            session.add(event)
+            await session.commit()
+
+    async def get_session_events(session_uuid: str) -> list[dict]:
+        from sqlalchemy import select as sa_select
+        async with Session() as session:
+            result = await session.execute(
+                sa_select(ClaudeSessionEvent)
+                .where(ClaudeSessionEvent.session_uuid == session_uuid)
+                .order_by(ClaudeSessionEvent.created_at)
+            )
+            events = result.scalars().all()
+            return [
+                {
+                    "event_type": e.event_type,
+                    "content": e.content,
+                    "created_at": e.created_at,
+                }
+                for e in events
+            ]
+
+    async def get_recent_sessions(limit: int = 10) -> list[dict]:
+        from sqlalchemy import select as sa_select, distinct
+        async with Session() as session:
+            # Get distinct session_uuids ordered by most recent event
+            subq = (
+                sa_select(
+                    ClaudeSessionEvent.session_uuid,
+                    func.max(ClaudeSessionEvent.created_at).label("last_event"),
+                    func.min(ClaudeSessionEvent.prompt).label("prompt"),
+                    func.min(ClaudeSessionEvent.project).label("project"),
+                )
+                .group_by(ClaudeSessionEvent.session_uuid)
+                .order_by(func.max(ClaudeSessionEvent.created_at).desc())
+                .limit(limit)
+                .subquery()
+            )
+            result = await session.execute(
+                sa_select(subq.c.session_uuid, subq.c.last_event, subq.c.prompt, subq.c.project)
+                .order_by(subq.c.last_event.desc())
+            )
+            rows = result.all()
+            return [
+                {
+                    "session_uuid": r.session_uuid,
+                    "last_event": r.last_event,
+                    "prompt": r.prompt,
+                    "project": r.project,
+                }
+                for r in rows
+            ]
+
 else:
     async def log(update: Update) -> None:
         user = update.effective_user
@@ -121,3 +202,13 @@ else:
 
     async def log_claude_response(project: str, response: str) -> None:
         logging.info(f"Claude response for project {project}:\n{response}")
+
+    async def log_session_event(session_uuid: str, claude_session_id: str | None,
+                                project: str, prompt: str, event_type: str, content: str) -> None:
+        logging.info(f"Session event [{session_uuid}] {event_type}: {content[:200]}")
+
+    async def get_session_events(session_uuid: str) -> list[dict]:
+        return []
+
+    async def get_recent_sessions(limit: int = 10) -> list[dict]:
+        return []

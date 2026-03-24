@@ -12,7 +12,7 @@ from telegram.ext import (
 )
 from apscheduler.triggers.date import DateTrigger
 from codebot.tools.claude import Claude
-from codebot.tools.logger import log_claude_response
+from codebot.tools.logger import log_claude_response, log_session_event, get_session_events, get_recent_sessions
 from codebot.tools.shell import run_command
 from codebot.settings import settings
 from codebot.tools.auth import authenticated
@@ -32,9 +32,21 @@ async def process_claude_prompt(message: str, project: str):
     plan_mode = message.startswith("?")
     if plan_mode:
         message = message[1:]
+
+    async def on_event(session_uuid, claude_session_id, event_type, content):
+        await log_session_event(
+            session_uuid=session_uuid,
+            claude_session_id=claude_session_id,
+            project=project,
+            prompt=message,
+            event_type=event_type,
+            content=content,
+        )
+
     try:
         ret, resp = await claude_session.send(
-            message, resume_session=resume_session, plan_mode=plan_mode
+            message, resume_session=resume_session, plan_mode=plan_mode,
+            on_event=on_event,
         )
     finally:
         ctx.claude_sessions.pop(project, None)
@@ -162,17 +174,112 @@ async def select_session_to_kill(update: Update, context: ContextTypes.DEFAULT_T
 
 @authenticated
 async def get_active_claude_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    active_sessions = list(ctx.claude_sessions.keys())
+    active_sessions = list(ctx.claude_sessions.items())
     if active_sessions:
-        session_list = "\n".join(f"- {proj}" for proj in active_sessions)
+        buttons = []
+        for proj, cs in active_sessions:
+            label = proj
+            if cs.prompt:
+                preview = cs.prompt[:30] + "..." if len(cs.prompt) > 30 else cs.prompt
+                label = f"{proj}: {preview}"
+            buttons.append(
+                InlineKeyboardButton(label, callback_data=f"slog_{proj}")
+            )
+        reply_markup = build_keyboard(buttons)
         await send_message(
             update,
             context,
-            f"Active Claude sessions for projects:\n{session_list}",
-            parse_mode="Markdown",
+            "Active Claude sessions:",
+            reply_markup=reply_markup,
         )
     else:
         await send_message(update, context, "No active Claude sessions found.")
+
+
+@authenticated
+async def show_session_log(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
+    data = query.data or ""
+
+    if data.startswith("slog_"):
+        # Active session: lookup by project name
+        proj = data[5:]
+        cs = ctx.claude_sessions.get(proj)
+        if not cs:
+            await query.edit_message_text(f"Session for {proj} not found or already completed.")
+            return
+        session_uuid = cs.session_uuid
+        prompt = cs.prompt
+        project = proj
+    elif data.startswith("hslog_"):
+        # Historical session: uuid is in callback data
+        session_uuid = data[6:]
+        prompt = None
+        project = None
+    else:
+        return
+
+    events = await get_session_events(session_uuid)
+
+    if not events:
+        await query.edit_message_text(
+            f"No events logged yet for session: {project or session_uuid}"
+        )
+        return
+
+    lines = []
+    if project:
+        lines.append(f"*Session:* {project}")
+    if prompt:
+        preview = prompt[:100] + "..." if len(prompt) > 100 else prompt
+        lines.append(f"*Prompt:* _{preview}_")
+    lines.append("")
+
+    for event in events:
+        ts = event["created_at"].strftime("%H:%M:%S") if event.get("created_at") else ""
+        etype = event.get("event_type", "")
+        content = event.get("content", "")
+        # Truncate long content for display
+        if len(content) > 300:
+            content = content[:300] + "..."
+
+        if etype == "assistant":
+            lines.append(f"`[{ts}]` {content}")
+        elif etype == "tool_use":
+            lines.append(f"`[{ts}]` *Tools:* {content}")
+        elif etype == "result":
+            lines.append(f"`[{ts}]` *Done* ({content})")
+        else:
+            lines.append(f"`[{ts}]` {etype}: {content}")
+
+    await query.edit_message_text("\n".join(lines), parse_mode="Markdown")
+
+
+@authenticated
+async def get_last_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    sessions = await get_recent_sessions(limit=10)
+    if not sessions:
+        await send_message(update, context, "No session history found.")
+        return
+
+    buttons = []
+    for s in sessions:
+        proj = s.get("project", "?")
+        prompt = s.get("prompt", "")
+        ts = s["last_event"].strftime("%d/%m %H:%M") if s.get("last_event") else ""
+        preview = prompt[:25] + "..." if prompt and len(prompt) > 25 else (prompt or "")
+        label = f"{proj} | {preview} | {ts}"
+        buttons.append(
+            InlineKeyboardButton(label, callback_data=f"hslog_{s['session_uuid'][:53]}")
+        )
+
+    reply_markup = build_keyboard(buttons)
+    await send_message(
+        update, context, "Recent sessions:", reply_markup=reply_markup,
+    )
 
 @authenticated
 async def voice_message_handler(

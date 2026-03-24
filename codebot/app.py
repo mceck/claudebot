@@ -29,6 +29,8 @@ from codebot.handlers.claude_handlers import (
     kill_claude,
     select_session_to_kill,
     get_active_claude_sessions,
+    show_session_log,
+    get_last_sessions,
     transcription_to_claude_handler,
     voice_message_handler,
     clear_session,
@@ -59,11 +61,13 @@ app.add_handler(CommandHandler("checklogin", check_login))
 app.add_handler(CommandHandler("schedule", schedule_message))
 app.add_handler(CommandHandler("showjobs", show_scheduled_jobs))
 app.add_handler(CommandHandler("deljob", delete_scheduled_job))
+app.add_handler(CommandHandler("lastsessions", get_last_sessions))
 app.add_handler(CallbackQueryHandler(select_project, pattern="^selectproject_"))
 app.add_handler(
     CallbackQueryHandler(select_branch_for_checkout, pattern="^(gco_|gpush_|gdel_)")
 )
 app.add_handler(CallbackQueryHandler(select_session_to_kill, pattern="^kill_"))
+app.add_handler(CallbackQueryHandler(show_session_log, pattern="^(slog_|hslog_)"))
 app.add_handler(
     CallbackQueryHandler(
         transcription_to_claude_handler, pattern="^transcription_to_claude$"
