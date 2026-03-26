@@ -2,6 +2,7 @@ import os
 from telegram import (
     Update,
     InlineKeyboardButton,
+    InlineKeyboardMarkup,
 )
 from telegram.ext import ContextTypes
 from codebot.tools.shell import run_command
@@ -382,6 +383,87 @@ async def git_delete_branch(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
     else:
         await send_message(update, context, f"Branch *{branch}* deleted successfully.", parse_mode="Markdown")
+
+
+@authenticated
+async def git_history(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    if not ctx.current_project:
+        await send_message(
+            update, context,
+            "No project selected. Please select a project using /select.",
+        )
+        return
+    project_path = os.path.join(settings.projects_dir, ctx.current_project)
+    if not os.path.exists(project_path):
+        await send_message(
+            update, context, f"Project directory not found: {ctx.current_project}"
+        )
+        return
+
+    ret_code, output = await run_command(
+        'git log -10 --format="%h|%an|%s|%ad" --date=format:"%d/%m %H:%M"',
+        cwd=project_path,
+    )
+    if ret_code != 0:
+        await send_message(update, context, f"Failed to get history:\n{output}")
+        return
+
+    lines = [l for l in output.strip().split("\n") if l.strip()]
+    if not lines:
+        await send_message(update, context, "No commits found.")
+        return
+
+    buttons = []
+    for line in lines:
+        parts = line.split("|", 3)
+        if len(parts) < 4:
+            continue
+        sha, author, message, date = parts
+        label = f"{date} - {author} - {message}"
+        if len(label) > 60:
+            label = label[:57] + "..."
+        buttons.append(
+            InlineKeyboardButton(label, callback_data=f"ghist_{sha}")
+        )
+
+    reply_markup = InlineKeyboardMarkup([[b] for b in buttons])
+    await send_message(
+        update, context, f"📋 Last commits ({ctx.current_project}):",
+        reply_markup=reply_markup,
+    )
+
+
+@authenticated
+async def git_history_callback(
+    update: Update, context: ContextTypes.DEFAULT_TYPE
+) -> None:
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
+    sha = (query.data or "").split("_", 1)[1]
+
+    if not ctx.current_project:
+        await query.edit_message_text("No project selected.")
+        return
+    project_path = os.path.join(settings.projects_dir, ctx.current_project)
+
+    await query.edit_message_text(f"Loading diff for {sha}...")
+
+    ret_code, output = await run_command(
+        f"git show --stat --patch {sha}", cwd=project_path
+    )
+    if ret_code != 0:
+        await send_message(update, context, f"Failed to get diff:\n{output}")
+        return
+
+    if output.strip():
+        await send_message(
+            update, context, output, parse_mode="Markdown",
+            chunk_wrap=("```diff\n", "\n```"),
+        )
+    else:
+        await send_message(update, context, "Empty diff.")
 
 
 @authenticated

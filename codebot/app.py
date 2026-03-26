@@ -22,6 +22,8 @@ from codebot.handlers.git_handlers import (
     git_fetch,
     git_checkout,
     git_delete_branch,
+    git_history,
+    git_history_callback,
 )
 from codebot.handlers.claude_handlers import (
     check_login,
@@ -57,12 +59,14 @@ app.add_handler(CommandHandler("gpush", git_push))
 app.add_handler(CommandHandler("gfetch", git_fetch))
 app.add_handler(CommandHandler("gco", git_checkout))
 app.add_handler(CommandHandler("gdel", git_delete_branch))
+app.add_handler(CommandHandler("ghist", git_history))
 app.add_handler(CommandHandler("checklogin", check_login))
 app.add_handler(CommandHandler("schedule", schedule_message))
 app.add_handler(CommandHandler("showjobs", show_scheduled_jobs))
 app.add_handler(CommandHandler("deljob", delete_scheduled_job))
 app.add_handler(CommandHandler("lastsessions", get_last_sessions))
 app.add_handler(CallbackQueryHandler(select_project, pattern="^selectproject_"))
+app.add_handler(CallbackQueryHandler(git_history_callback, pattern="^ghist_"))
 app.add_handler(
     CallbackQueryHandler(select_branch_for_checkout, pattern="^(gco_|gpush_|gdel_)")
 )
