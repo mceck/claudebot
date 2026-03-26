@@ -350,11 +350,11 @@ async def get_last_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await send_message(update, context, "No session history found.")
         return
 
-    for s in sessions:
+    for s in reversed(sessions):
         proj = s.get("project", "?")
         prompt = s.get("prompt", "")
         ts = s["last_event"].strftime("%d/%m %H:%M") if s.get("last_event") else ""
-        preview = prompt[:60] + "..." if prompt and len(prompt) > 60 else (prompt or "-")
+        preview = prompt[:120] + "..." if prompt and len(prompt) > 120 else (prompt or "-")
         gk = s["group_key"][:53]
         text = f"*{proj}*\n{preview}\n_{ts}_"
         keyboard = InlineKeyboardMarkup([
