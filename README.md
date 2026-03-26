@@ -82,8 +82,15 @@ GIT_COMMITTER_EMAIL=xxx
 - **Regular message** - Send message to Claude Code (resumes session)
 - **`!message`** - Start fresh Claude Code session (doesn't resume)
 - **`?message`** - Use plan mode (analyze without executing)
-- `/kill` - Terminate the current Claude Code session
+- `/kill [project_name]` - Terminate Claude Code session (shows list if no project specified)
+- `/clear` - Clear the Claude session history for current project
+- `/sessions` - Show all active Claude sessions with previews
+- `/lastsessions` - Show last 10 recent sessions from history
+- `/stream [project_name]` - Stream active session output in real-time
 - `/checklogin` - Verify Claude Code CLI authentication status
+
+### Scheduling
+
 - `/schedule <hh[:mm]> <message>` - Schedule a message to be sent to Claude after a specified time (use 24h format)
 - `/showjobs` - Show scheduled messages
 - `/deljob` - Delete a scheduled message
@@ -97,6 +104,8 @@ GIT_COMMITTER_EMAIL=xxx
 - `/gfetch` - Fetch updates from remote
 - `/greset` - Hard reset and pull latest changes
 - `/gclone <repo_url>` - Clone a new repository
+- `/gdel [branch_name]` - Delete a branch (shows list if not specified)
+- `/ghist` - Show last 10 commits with interactive details
 
 ## 📝 License
 
