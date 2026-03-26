@@ -46,7 +46,7 @@ class Claude:
             cmd += f" --permission-mode plan"
         if resume_session:
             cmd += f" -c"
-        cmd += f" --output-format stream-json -p {escaped_message}"
+        cmd += f" --output-format stream-json --verbose -p {escaped_message}"
         self.process = await asyncio.create_subprocess_shell(
             cmd,
             cwd=self.cwd,
