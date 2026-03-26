@@ -23,6 +23,19 @@ from codebot.tools.scheduler import scheduler
 
 
 
+def _build_processing_status(message: str) -> str:
+    prefix_parts = []
+    msg = message
+    if msg.startswith("!"):
+        prefix_parts.append("[CLEARED]")
+        msg = msg[1:]
+    if msg.startswith("?"):
+        prefix_parts.append("[PLAN]")
+    prefix = " ".join(prefix_parts)
+    status = f"{prefix} Processing..." if prefix else "Processing..."
+    return f"{status}\n\n💡 Use /stream to follow the progress live."
+
+
 async def process_claude_prompt(message: str, project: str):
     claude_session = Claude(os.path.join(settings.projects_dir, project))
     ctx.claude_sessions[project] = claude_session
@@ -92,7 +105,8 @@ async def process_claude_prompt_and_answer(chat_id: int, message: str, project: 
 async def scheduled_process_claude_prompt_and_answer(chat_id: int, message: str, project: str | None = None):
     """Wrapper for scheduled jobs: sends a notification before processing."""
     preview = message[:50] + "..." if len(message) > 50 else message
-    await send_direct_message(chat_id, f"⏰ Running scheduled task: _{preview}_", parse_mode="Markdown")
+    status = _build_processing_status(message)
+    await send_direct_message(chat_id, f"⏰ Running scheduled task: _{preview}_\n\n{status}", parse_mode="Markdown")
     return await process_claude_prompt_and_answer(chat_id, message, project)
 
 
@@ -127,7 +141,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
     if update.message and update.message.text:
-        await send_message(update, context, "Processing your message...")
+        await send_message(update, context, _build_processing_status(update.message.text))
         await process_claude_prompt_and_answer(update.message.chat_id, update.message.text)
 
     else:
@@ -367,7 +381,7 @@ async def transcription_to_claude_handler(
         await send_message(update, context, "No message found to reply to.")
         return
     await update.callback_query.edit_message_reply_markup(reply_markup=None)
-    await send_message(update, context, "Processing message with Claude...")
+    await send_message(update, context, _build_processing_status(transcription))
     await process_claude_prompt_and_answer(update.callback_query.message.chat.id, transcription, ctx.current_project)
 
 
