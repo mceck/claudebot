@@ -350,24 +350,20 @@ async def get_last_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         await send_message(update, context, "No session history found.")
         return
 
-    keyboard = []
     for s in sessions:
         proj = s.get("project", "?")
         prompt = s.get("prompt", "")
         ts = s["last_event"].strftime("%d/%m %H:%M") if s.get("last_event") else ""
-        preview = prompt[:25] + "..." if prompt and len(prompt) > 25 else (prompt or "")
-        label = f"{proj} | {preview} | {ts}"
+        preview = prompt[:60] + "..." if prompt and len(prompt) > 60 else (prompt or "-")
         gk = s["group_key"][:53]
-        keyboard.append([InlineKeyboardButton(label, callback_data=f"hslog_{gk}")])
-        keyboard.append([
-            InlineKeyboardButton("Log", callback_data=f"hslog_{gk}"),
-            InlineKeyboardButton("Resume", callback_data=f"hsres_{gk}"),
+        text = f"*{proj}*\n{preview}\n_{ts}_"
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("Log", callback_data=f"hslog_{gk}"),
+                InlineKeyboardButton("Resume", callback_data=f"hsres_{gk}"),
+            ]
         ])
-
-    reply_markup = InlineKeyboardMarkup(keyboard)
-    await send_message(
-        update, context, "Recent sessions:", reply_markup=reply_markup,
-    )
+        await send_message(update, context, text, reply_markup=keyboard, parse_mode="Markdown")
 
 @authenticated
 async def voice_message_handler(
