@@ -175,28 +175,23 @@ async def git_push(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     branch = " ".join(context.args) if context.args else None
 
     if not branch:
-        ret_code, output = await run_command("git branch", cwd=project_path)
+        ret_code, output = await run_command("git branch --show-current", cwd=project_path)
 
         if ret_code != 0:
-            await send_message(update, context, f"Failed to get branches:\n{output}")
+            await send_message(update, context, f"Failed to get current branch:\n{output}")
             return
 
-        branches = [
-            line.strip().lstrip("* ")
-            for line in output.strip().split("\n")
-            if line.strip()
-        ]
-
-        if not branches:
-            await send_message(update, context, "No branches found in the repository.")
+        current_branch = output.strip()
+        if not current_branch:
+            await send_message(update, context, "No current branch found (detached HEAD?).")
             return
 
         reply_markup = build_keyboard([
-            InlineKeyboardButton(branch, callback_data=f"gpush_{branch}")
-            for branch in branches
+            InlineKeyboardButton("Yes", callback_data=f"gpush_{current_branch}"),
+            InlineKeyboardButton("No", callback_data="gpush_no"),
         ])
         await send_message(
-            update, context, "Select branch to push:", reply_markup=reply_markup
+            update, context, f"Push branch `{current_branch}` to origin?", reply_markup=reply_markup
         )
         return
 
@@ -475,7 +470,9 @@ async def select_branch_for_checkout(
         return
     await query.answer()
     option = query.data or "_"
-    if option.startswith("gpush_") or option.startswith("gco_") or option.startswith("gdel_"):
+    if option == "gpush_no":
+        await query.edit_message_text(text="Push cancelled.")
+    elif option.startswith("gpush_") or option.startswith("gco_") or option.startswith("gdel_"):
         branch = option.split("_", 1)[1]
         context.args = [branch]
         if option.startswith("gco_"):
