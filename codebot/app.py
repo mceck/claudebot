@@ -41,6 +41,8 @@ from codebot.handlers.claude_handlers import (
     show_scheduled_jobs,
     delete_scheduled_job,
     delete_scheduled_job_handler,
+    stream_active_sessions,
+    start_stream_handler,
 )
 
 app.add_error_handler(error_handler)
@@ -65,12 +67,14 @@ app.add_handler(CommandHandler("schedule", schedule_message))
 app.add_handler(CommandHandler("showjobs", show_scheduled_jobs))
 app.add_handler(CommandHandler("deljob", delete_scheduled_job))
 app.add_handler(CommandHandler("lastsessions", get_last_sessions))
+app.add_handler(CommandHandler("stream", stream_active_sessions))
 app.add_handler(CallbackQueryHandler(select_project, pattern="^selectproject_"))
 app.add_handler(CallbackQueryHandler(git_history_callback, pattern="^ghist_"))
 app.add_handler(
     CallbackQueryHandler(select_branch_for_checkout, pattern="^(gco_|gpush_|gdel_)")
 )
 app.add_handler(CallbackQueryHandler(select_session_to_kill, pattern="^kill_"))
+app.add_handler(CallbackQueryHandler(start_stream_handler, pattern="^stream_"))
 app.add_handler(CallbackQueryHandler(show_session_log, pattern="^(slog_|hslog_)"))
 app.add_handler(
     CallbackQueryHandler(

@@ -26,6 +26,7 @@ async def setup_commands(application):
         BotCommand("showjobs", "Show scheduled messages"),
         BotCommand("deljob", "Delete a scheduled message"),
         BotCommand("sessions", "List active Claude sessions"),
+        BotCommand("stream", "Stream live updates from a Claude session"),
         BotCommand("lastsessions", "Show last 10 Claude sessions"),
         BotCommand("kill", "Kill an active Claude session"),
         BotCommand("clear", "Clear the current Claude session"),

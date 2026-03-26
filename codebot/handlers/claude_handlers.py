@@ -1,3 +1,4 @@
+import asyncio
 import os
 import re
 import httpx
@@ -520,3 +521,86 @@ async def delete_scheduled_job_handler(update: Update, context: ContextTypes.DEF
         await update.callback_query.edit_message_text(f"Scheduled job deleted successfully.")
     except Exception as e:
         await update.callback_query.edit_message_text(f"Error deleting scheduled job: {e}")
+
+
+@authenticated
+async def stream_active_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    active_sessions = list(ctx.claude_sessions.items())
+    if not active_sessions:
+        await send_message(update, context, "No active Claude sessions found.")
+        return
+    buttons = []
+    for proj, cs in active_sessions:
+        label = proj
+        if cs.prompt:
+            preview = cs.prompt[:30] + "..." if len(cs.prompt) > 30 else cs.prompt
+            label = f"{proj}: {preview}"
+        buttons.append(
+            InlineKeyboardButton(label, callback_data=f"stream_{proj}")
+        )
+    reply_markup = build_keyboard(buttons)
+    await send_message(
+        update, context, "Select a session to stream:", reply_markup=reply_markup,
+    )
+
+
+@authenticated
+async def start_stream_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
+    data = query.data or ""
+    if not data.startswith("stream_"):
+        return
+    proj = data[7:]
+    cs = ctx.claude_sessions.get(proj)
+    if not cs:
+        await query.edit_message_text(f"Session for {proj} not found or already completed.")
+        return
+    if proj in ctx.active_streams:
+        await query.edit_message_text(f"Already streaming session: {proj}")
+        return
+
+    chat_id = query.message.chat_id if query.message else None
+    if not chat_id:
+        return
+
+    ctx.active_streams.add(proj)
+    await query.edit_message_text(f"Streaming session: *{proj}*...", parse_mode="Markdown")
+    asyncio.create_task(_stream_session_task(chat_id, proj, cs.session_uuid))
+
+
+async def _stream_session_task(chat_id: int, project: str, session_uuid: str):
+    seen_count = 0
+    try:
+        while True:
+            await asyncio.sleep(5)
+            events = await get_session_events(session_uuid)
+            new_events = events[seen_count:]
+            seen_count = len(events)
+
+            if new_events:
+                lines = []
+                for event in new_events:
+                    ts = event["created_at"].strftime("%H:%M:%S") if event.get("created_at") else ""
+                    etype = event.get("event_type", "")
+                    content = event.get("content", "")
+                    if etype == "assistant":
+                        lines.append(f"`[{ts}]` {content}")
+                    elif etype == "tool_use":
+                        lines.append(f"`[{ts}]` *Tools:* {content}")
+                    elif etype == "result":
+                        lines.append(f"`[{ts}]` *Done* ({content})")
+                    else:
+                        lines.append(f"`[{ts}]` {etype}: {content}")
+                text = "\n".join(lines)
+                await send_direct_message(chat_id, text, parse_mode="Markdown")
+
+            if project not in ctx.claude_sessions:
+                await send_direct_message(chat_id, f"Stream ended for *{project}*.", parse_mode="Markdown")
+                break
+    except Exception as e:
+        print(f"Stream task error for {project}: {e}")
+    finally:
+        ctx.active_streams.discard(project)
