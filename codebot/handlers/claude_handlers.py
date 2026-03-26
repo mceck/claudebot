@@ -16,7 +16,7 @@ from codebot.tools.logger import log_claude_response, log_session_event, get_ses
 from codebot.tools.shell import run_command
 from codebot.settings import settings
 from codebot.tools.auth import authenticated
-from codebot.tools.bot import send_message, build_keyboard
+from codebot.tools.bot import send_message, send_direct_message, build_keyboard
 from codebot.tools.context import ctx
 from codebot.tools.scheduler import scheduler
 from codebot.tools.bot import send_direct_message
@@ -242,9 +242,6 @@ async def show_session_log(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         ts = event["created_at"].strftime("%H:%M:%S") if event.get("created_at") else ""
         etype = event.get("event_type", "")
         content = event.get("content", "")
-        # Truncate long content for display
-        if len(content) > 300:
-            content = content[:300] + "..."
 
         if etype == "assistant":
             lines.append(f"`[{ts}]` {content}")
@@ -255,7 +252,12 @@ async def show_session_log(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         else:
             lines.append(f"`[{ts}]` {etype}: {content}")
 
-    await query.edit_message_text("\n".join(lines), parse_mode="Markdown")
+    text = "\n".join(lines)
+    chat_id = query.message.chat_id if query.message else None
+    if not chat_id:
+        return
+    await query.edit_message_text("Session log:")
+    await send_direct_message(chat_id, text, parse_mode="Markdown")
 
 
 @authenticated
