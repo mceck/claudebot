@@ -156,34 +156,62 @@ if settings.DATABASE_URL:
             return result.scalar_one_or_none()
 
     async def get_recent_sessions(limit: int = 10) -> list[dict]:
-        from sqlalchemy import select as sa_select, distinct
+        from sqlalchemy import select as sa_select
         async with Session() as session:
-            # Get distinct session_uuids ordered by most recent event
+            # Group by claude_session_id when available, fallback to session_uuid
+            group_key = func.coalesce(ClaudeSessionEvent.claude_session_id, ClaudeSessionEvent.session_uuid)
             subq = (
                 sa_select(
-                    ClaudeSessionEvent.session_uuid,
+                    group_key.label("group_key"),
+                    func.max(ClaudeSessionEvent.claude_session_id).label("claude_session_id"),
                     func.max(ClaudeSessionEvent.created_at).label("last_event"),
                     func.min(ClaudeSessionEvent.prompt).label("prompt"),
                     func.min(ClaudeSessionEvent.project).label("project"),
                 )
-                .group_by(ClaudeSessionEvent.session_uuid)
+                .group_by(group_key)
                 .order_by(func.max(ClaudeSessionEvent.created_at).desc())
                 .limit(limit)
                 .subquery()
             )
             result = await session.execute(
-                sa_select(subq.c.session_uuid, subq.c.last_event, subq.c.prompt, subq.c.project)
+                sa_select(subq.c.group_key, subq.c.claude_session_id, subq.c.last_event, subq.c.prompt, subq.c.project)
                 .order_by(subq.c.last_event.desc())
             )
             rows = result.all()
             return [
                 {
-                    "session_uuid": r.session_uuid,
+                    "group_key": r.group_key,
+                    "claude_session_id": r.claude_session_id,
                     "last_event": r.last_event,
                     "prompt": r.prompt,
                     "project": r.project,
                 }
                 for r in rows
+            ]
+
+    async def get_events_by_group(group_key: str) -> list[dict]:
+        from sqlalchemy import select as sa_select, or_
+        async with Session() as session:
+            result = await session.execute(
+                sa_select(ClaudeSessionEvent)
+                .where(
+                    or_(
+                        ClaudeSessionEvent.claude_session_id == group_key,
+                        ClaudeSessionEvent.session_uuid == group_key,
+                    )
+                )
+                .order_by(ClaudeSessionEvent.created_at)
+            )
+            events = result.scalars().all()
+            return [
+                {
+                    "event_type": e.event_type,
+                    "content": e.content,
+                    "created_at": e.created_at,
+                    "session_uuid": e.session_uuid,
+                    "prompt": e.prompt,
+                }
+                for e in events
             ]
 
 else:
@@ -225,4 +253,7 @@ else:
         return None
 
     async def get_recent_sessions(limit: int = 10) -> list[dict]:
+        return []
+
+    async def get_events_by_group(group_key: str) -> list[dict]:
         return []

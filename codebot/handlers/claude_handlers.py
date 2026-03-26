@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 from apscheduler.triggers.date import DateTrigger
 from codebot.tools.claude import Claude
-from codebot.tools.logger import log_claude_response, log_session_event, get_session_events, get_recent_sessions, get_claude_session_id
+from codebot.tools.logger import log_claude_response, log_session_event, get_session_events, get_recent_sessions, get_claude_session_id, get_events_by_group
 from codebot.tools.shell import run_command
 from codebot.settings import settings
 from codebot.tools.auth import authenticated
@@ -232,28 +232,26 @@ async def show_session_log(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         if not cs:
             await query.edit_message_text(f"Session for {proj} not found or already completed.")
             return
-        session_uuid = cs.session_uuid
+        events = await get_session_events(cs.session_uuid)
         prompt = cs.prompt
         project = proj
     elif data.startswith("hslog_"):
-        # Historical session: show log
-        partial_uuid = data[6:]
+        # Historical session: show all linked sessions
+        partial_key = data[6:]
         recent = await get_recent_sessions(limit=50)
-        target = next((s for s in recent if s["session_uuid"].startswith(partial_uuid)), None)
+        target = next((s for s in recent if s["group_key"].startswith(partial_key)), None)
         if not target:
             await query.edit_message_text("Session not found.")
             return
-        session_uuid = target["session_uuid"]
+        events = await get_events_by_group(target["group_key"])
         project = target["project"]
         prompt = target.get("prompt", "")
     else:
         return
 
-    events = await get_session_events(session_uuid)
-
     if not events:
         await query.edit_message_text(
-            f"No events logged yet for session: {project or session_uuid}"
+            f"No events logged yet for session: {project or 'unknown'}"
         )
         return
 
@@ -265,7 +263,16 @@ async def show_session_log(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         lines.append(f"*Prompt:* _{preview}_")
     lines.append("")
 
+    prev_session_uuid = None
     for event in events:
+        # Show separator when session_uuid changes (resumed sessions)
+        session_uuid = event.get("session_uuid")
+        if session_uuid and session_uuid != prev_session_uuid and prev_session_uuid is not None:
+            event_prompt = event.get("prompt", "")
+            resume_preview = event_prompt[:60] + "..." if event_prompt and len(event_prompt) > 60 else (event_prompt or "")
+            lines.append(f"\n--- *Resume:* _{resume_preview}_ ---\n")
+        prev_session_uuid = session_uuid
+
         ts = event["created_at"].strftime("%H:%M:%S") if event.get("created_at") else ""
         etype = event.get("event_type", "")
         content = event.get("content", "")
@@ -294,19 +301,18 @@ async def resume_session_callback(update: Update, context: ContextTypes.DEFAULT_
         return
     await query.answer()
     data = query.data or ""
-    partial_uuid = data[6:]  # strip "hsres_"
+    partial_key = data[6:]  # strip "hsres_"
 
     recent = await get_recent_sessions(limit=50)
-    target = next((s for s in recent if s["session_uuid"].startswith(partial_uuid)), None)
+    target = next((s for s in recent if s["group_key"].startswith(partial_key)), None)
     if not target:
         await query.edit_message_text("Session not found.")
         return
-    session_uuid = target["session_uuid"]
     project = target["project"] or ctx.current_project
     if not project:
         await query.edit_message_text("Could not determine the project for this session.")
         return
-    claude_sid = await get_claude_session_id(session_uuid)
+    claude_sid = target.get("claude_session_id")
     if not claude_sid:
         await query.edit_message_text("Could not find Claude session ID for this session.")
         return
@@ -331,7 +337,7 @@ async def resume_session_callback(update: Update, context: ContextTypes.DEFAULT_
 
     ctx.resume_claude_session_id[project] = claude_sid
     await query.edit_message_text(
-        f"Session recovered for *{project}* [{session_uuid}]\n"
+        f"Session recovered for *{project}*\n"
         f"_{prompt_preview}_",
         parse_mode="Markdown",
     )
@@ -351,11 +357,11 @@ async def get_last_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         ts = s["last_event"].strftime("%d/%m %H:%M") if s.get("last_event") else ""
         preview = prompt[:25] + "..." if prompt and len(prompt) > 25 else (prompt or "")
         label = f"{proj} | {preview} | {ts}"
-        sid = s["session_uuid"][:53]
-        keyboard.append([InlineKeyboardButton(label, callback_data=f"hslog_{sid}")])
+        gk = s["group_key"][:53]
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"hslog_{gk}")])
         keyboard.append([
-            InlineKeyboardButton("Log", callback_data=f"hslog_{sid}"),
-            InlineKeyboardButton("Resume", callback_data=f"hsres_{sid}"),
+            InlineKeyboardButton("Log", callback_data=f"hslog_{gk}"),
+            InlineKeyboardButton("Resume", callback_data=f"hsres_{gk}"),
         ])
 
     reply_markup = InlineKeyboardMarkup(keyboard)
