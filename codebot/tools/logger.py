@@ -144,6 +144,17 @@ if settings.DATABASE_URL:
                 for e in events
             ]
 
+    async def get_claude_session_id(session_uuid: str) -> str | None:
+        from sqlalchemy import select as sa_select
+        async with Session() as session:
+            result = await session.execute(
+                sa_select(ClaudeSessionEvent.claude_session_id)
+                .where(ClaudeSessionEvent.session_uuid == session_uuid)
+                .where(ClaudeSessionEvent.claude_session_id.isnot(None))
+                .limit(1)
+            )
+            return result.scalar_one_or_none()
+
     async def get_recent_sessions(limit: int = 10) -> list[dict]:
         from sqlalchemy import select as sa_select, distinct
         async with Session() as session:
@@ -209,6 +220,9 @@ else:
 
     async def get_session_events(session_uuid: str) -> list[dict]:
         return []
+
+    async def get_claude_session_id(session_uuid: str) -> str | None:
+        return None
 
     async def get_recent_sessions(limit: int = 10) -> list[dict]:
         return []

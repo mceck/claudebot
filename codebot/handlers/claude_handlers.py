@@ -13,7 +13,7 @@ from telegram.ext import (
 )
 from apscheduler.triggers.date import DateTrigger
 from codebot.tools.claude import Claude
-from codebot.tools.logger import log_claude_response, log_session_event, get_session_events, get_recent_sessions
+from codebot.tools.logger import log_claude_response, log_session_event, get_session_events, get_recent_sessions, get_claude_session_id
 from codebot.tools.shell import run_command
 from codebot.settings import settings
 from codebot.tools.auth import authenticated
@@ -23,7 +23,7 @@ from codebot.tools.scheduler import scheduler
 
 
 
-def _build_processing_status(message: str) -> str:
+def _build_processing_status(message: str, project: str | None = None) -> str:
     prefix_parts = []
     msg = message
     if msg.startswith("!"):
@@ -31,6 +31,8 @@ def _build_processing_status(message: str) -> str:
         msg = msg[1:]
     if msg.startswith("?"):
         prefix_parts.append("[PLAN]")
+    if project and project in ctx.resume_claude_session_id:
+        prefix_parts.append("[RESUME]")
     prefix = " ".join(prefix_parts)
     status = f"{prefix} Processing..." if prefix else "Processing..."
     return f"{status}\n\n💡 Use /stream to follow the progress live."
@@ -56,10 +58,14 @@ async def process_claude_prompt(message: str, project: str):
             content=content,
         )
 
+    resume_session_id = ctx.resume_claude_session_id.pop(project, None)
+    if not resume_session:
+        resume_session_id = None
+
     try:
         ret, resp = await claude_session.send(
             message, resume_session=resume_session, plan_mode=plan_mode,
-            on_event=on_event,
+            on_event=on_event, resume_session_id=resume_session_id,
         )
     finally:
         ctx.claude_sessions.pop(project, None)
@@ -141,7 +147,7 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
         return
     if update.message and update.message.text:
-        await send_message(update, context, _build_processing_status(update.message.text))
+        await send_message(update, context, _build_processing_status(update.message.text, ctx.current_project))
         await process_claude_prompt_and_answer(update.message.chat_id, update.message.text)
 
     else:
@@ -229,10 +235,46 @@ async def show_session_log(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         prompt = cs.prompt
         project = proj
     elif data.startswith("hslog_"):
-        # Historical session: uuid is in callback data
+        # Historical session: recover it for next message
         session_uuid = data[6:]
-        prompt = None
-        project = None
+        claude_sid = await get_claude_session_id(session_uuid)
+        if not claude_sid:
+            await query.edit_message_text("Could not find Claude session ID for this session.")
+            return
+        recent = await get_recent_sessions(limit=50)
+        target = next((s for s in recent if s["session_uuid"].startswith(session_uuid)), None)
+        project = target["project"] if target else ctx.current_project
+        if not project:
+            await query.edit_message_text("Could not determine the project for this session.")
+            return
+        prompt_preview = target["prompt"][:60] + "..." if target and target.get("prompt") and len(target["prompt"]) > 60 else (target.get("prompt", "") if target else "")
+
+        if project != ctx.current_project:
+            # Different project: ask user to confirm switch
+            ctx.pending_recovery = {
+                "claude_sid": claude_sid,
+                "project": project,
+                "prompt_preview": prompt_preview,
+            }
+            await query.edit_message_text(
+                f"This session belongs to *{project}* but current project is *{ctx.current_project}*.\n"
+                f"Switch project and recover session?",
+                parse_mode="Markdown",
+                reply_markup=InlineKeyboardMarkup([[
+                    InlineKeyboardButton("Yes", callback_data="recover_yes"),
+                    InlineKeyboardButton("No", callback_data="recover_no"),
+                ]]),
+            )
+            return
+
+        ctx.resume_claude_session_id[project] = claude_sid
+        await query.edit_message_text(
+            f"Session recovered for *{project}*\n"
+            f"_{prompt_preview}_\n\n"
+            f"Next message will resume this session (`-r`). After that, it goes back to `-c`.",
+            parse_mode="Markdown",
+        )
+        return
     else:
         return
 
@@ -534,6 +576,33 @@ async def delete_scheduled_job_handler(update: Update, context: ContextTypes.DEF
         await update.callback_query.edit_message_text(f"Scheduled job deleted successfully.")
     except Exception as e:
         await update.callback_query.edit_message_text(f"Error deleting scheduled job: {e}")
+
+
+@authenticated
+async def recover_session_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
+    data = query.data or ""
+    pending = ctx.pending_recovery
+    ctx.pending_recovery = None
+
+    if data == "recover_no" or not pending:
+        await query.edit_message_text("Session recovery cancelled.")
+        return
+
+    # recover_yes: switch project and set resume ID
+    project = pending["project"]
+    ctx.set_current_project(project)
+    ctx.resume_claude_session_id[project] = pending["claude_sid"]
+    prompt_preview = pending.get("prompt_preview", "")
+    await query.edit_message_text(
+        f"Switched to *{project}* and session recovered.\n"
+        f"_{prompt_preview}_\n\n"
+        f"Next message will resume this session (`-r`). After that, it goes back to `-c`.",
+        parse_mode="Markdown",
+    )
 
 
 @authenticated

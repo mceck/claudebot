@@ -33,7 +33,7 @@ class Claude:
 
     async def send(
         self, message: str, resume_session: bool = False, plan_mode: bool = False,
-        on_event=None,
+        on_event=None, resume_session_id: str | None = None,
     ) -> tuple[int, str]:
         self.prompt = message
         escaped_message = shlex.quote(message)
@@ -44,7 +44,9 @@ class Claude:
             cmd += f" --effort {settings.EFFORT}"
         if plan_mode:
             cmd += f" --permission-mode plan"
-        if resume_session:
+        if resume_session_id:
+            cmd += f" -r {shlex.quote(resume_session_id)}"
+        elif resume_session:
             cmd += f" -c"
         cmd += f" --output-format stream-json --verbose -p {escaped_message}"
         self.process = await asyncio.create_subprocess_shell(
