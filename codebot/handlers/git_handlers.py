@@ -186,10 +186,10 @@ async def git_push(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
             await send_message(update, context, "No current branch found (detached HEAD?).")
             return
 
-        reply_markup = build_keyboard([
+        reply_markup = InlineKeyboardMarkup([[
             InlineKeyboardButton("Yes", callback_data=f"gpush_{current_branch}"),
             InlineKeyboardButton("No", callback_data="gpush_no"),
-        ])
+        ]])
         await send_message(
             update, context, f"Push branch `{current_branch}` to origin?", reply_markup=reply_markup
         )
