@@ -26,12 +26,13 @@ from codebot.tools.scheduler import scheduler
 def _build_processing_status(message: str, project: str | None = None) -> str:
     prefix_parts = []
     msg = message
-    if msg.startswith("!"):
+    cleared = msg.startswith("!")
+    if cleared:
         prefix_parts.append("[CLEARED]")
         msg = msg[1:]
     if msg.startswith("?"):
         prefix_parts.append("[PLAN]")
-    if project and project in ctx.resume_claude_session_id:
+    if not cleared and project and project in ctx.resume_claude_session_id:
         prefix_parts.append("[RESUME]")
     prefix = " ".join(prefix_parts)
     status = f"{prefix} Processing..." if prefix else "Processing..."
