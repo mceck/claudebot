@@ -17,10 +17,9 @@ from codebot.tools.logger import log_claude_response, log_session_event, get_ses
 from codebot.tools.shell import run_command
 from codebot.settings import settings
 from codebot.tools.auth import authenticated
-from codebot.tools.bot import send_message, send_direct_message, build_keyboard
+from codebot.tools.bot import send_message, send_direct_message, build_keyboard, app as bot_app
 from codebot.tools.context import ctx
 from codebot.tools.scheduler import scheduler
-from codebot.tools.bot import send_direct_message
 
 
 
@@ -567,12 +566,47 @@ async def start_stream_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     ctx.active_streams.add(proj)
-    await query.edit_message_text(f"Streaming session: *{proj}*...", parse_mode="Markdown")
-    asyncio.create_task(_stream_session_task(chat_id, proj, cs.session_uuid))
+    await query.edit_message_text(f"*Streaming:* {proj}\n\n_Waiting for events..._", parse_mode="Markdown")
+    message_id = query.message.message_id
+    asyncio.create_task(_stream_session_task(chat_id, message_id, proj, cs.session_uuid))
 
 
-async def _stream_session_task(chat_id: int, project: str, session_uuid: str):
+def _format_event(event: dict) -> str:
+    ts = event["created_at"].strftime("%H:%M:%S") if event.get("created_at") else ""
+    etype = event.get("event_type", "")
+    content = event.get("content", "")
+    if etype == "assistant":
+        return f"`[{ts}]` {content}"
+    elif etype == "tool_use":
+        return f"`[{ts}]` *Tools:* {content}"
+    elif etype == "result":
+        return f"`[{ts}]` *Done* ({content})"
+    return f"`[{ts}]` {etype}: {content}"
+
+
+MAX_STREAM_MSG_LENGTH = 3500
+
+
+async def _edit_stream_message(chat_id: int, message_id: int, text: str):
+    try:
+        await bot_app.bot.edit_message_text(
+            chat_id=chat_id, message_id=message_id, text=text, parse_mode="Markdown",
+        )
+    except Exception:
+        try:
+            await bot_app.bot.edit_message_text(
+                chat_id=chat_id, message_id=message_id, text=text,
+            )
+        except Exception:
+            pass
+
+
+async def _stream_session_task(chat_id: int, message_id: int, project: str, session_uuid: str):
     seen_count = 0
+    lines: list[str] = []
+    current_msg_id = message_id
+    header = f"*Streaming:* {project}\n"
+
     try:
         while True:
             await asyncio.sleep(5)
@@ -581,24 +615,26 @@ async def _stream_session_task(chat_id: int, project: str, session_uuid: str):
             seen_count = len(events)
 
             if new_events:
-                lines = []
                 for event in new_events:
-                    ts = event["created_at"].strftime("%H:%M:%S") if event.get("created_at") else ""
-                    etype = event.get("event_type", "")
-                    content = event.get("content", "")
-                    if etype == "assistant":
-                        lines.append(f"`[{ts}]` {content}")
-                    elif etype == "tool_use":
-                        lines.append(f"`[{ts}]` *Tools:* {content}")
-                    elif etype == "result":
-                        lines.append(f"`[{ts}]` *Done* ({content})")
-                    else:
-                        lines.append(f"`[{ts}]` {etype}: {content}")
-                text = "\n".join(lines)
-                await send_direct_message(chat_id, text, parse_mode="Markdown")
+                    lines.append(_format_event(event))
+
+                text = header + "\n".join(lines)
+
+                if len(text) > MAX_STREAM_MSG_LENGTH:
+                    # Freeze current message, start a new one
+                    msg = await send_direct_message(chat_id, "_continuing..._", parse_mode="Markdown")
+                    if msg:
+                        current_msg_id = msg.message_id
+                    overflow = len(new_events)
+                    lines = lines[-overflow:]
+                    text = header + "\n".join(lines)
+
+                await _edit_stream_message(chat_id, current_msg_id, text)
 
             if project not in ctx.claude_sessions:
-                await send_direct_message(chat_id, f"Stream ended for *{project}*.", parse_mode="Markdown")
+                lines.append("\n_Stream ended._")
+                text = header + "\n".join(lines)
+                await _edit_stream_message(chat_id, current_msg_id, text)
                 break
     except Exception as e:
         print(f"Stream task error for {project}: {e}")
