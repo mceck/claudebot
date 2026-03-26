@@ -55,6 +55,7 @@ class Claude:
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
             start_new_session=True,
+            limit=10 * 1024 * 1024,  # 10MB buffer limit
         )
 
         final_result = ""
@@ -71,7 +72,21 @@ class Claude:
         stderr_task = asyncio.create_task(_drain_stderr())
 
         while True:
-            line = await self.process.stdout.readline()
+            try:
+                line = await self.process.stdout.readline()
+            except (ValueError, asyncio.LimitOverrunError) as e:
+                print(f"Stream read error (skipping): {e}")
+                if on_event:
+                    try:
+                        await on_event(
+                            session_uuid=self.session_uuid,
+                            claude_session_id=claude_session_id,
+                            event_type="assistant",
+                            content="[ERR] stream read error, continuing...",
+                        )
+                    except Exception:
+                        pass
+                continue
             if not line:
                 break
             line_str = line.decode("utf-8", errors="ignore").strip()
@@ -82,76 +97,89 @@ class Claude:
             except json.JSONDecodeError:
                 continue
 
-            event_type = event.get("type", "unknown")
-            if not claude_session_id:
-                claude_session_id = event.get("session_id")
+            try:
+                event_type = event.get("type", "unknown")
+                if not claude_session_id:
+                    claude_session_id = event.get("session_id")
 
-            if event_type == "assistant":
-                msg = event.get("message", {})
-                content_blocks = msg.get("content", [])
-                texts = []
-                tools = []
-                for block in content_blocks:
-                    if block.get("type") == "text":
-                        texts.append(block.get("text", ""))
-                    elif block.get("type") == "tool_use":
-                        tool_name = block.get("name", "unknown")
-                        tool_input = block.get("input", {})
-                        key = ""
-                        if tool_name in ("Read", "Edit", "Write"):
-                            key = tool_input.get("file_path", "")
-                        elif tool_name == "Glob":
-                            key = tool_input.get("pattern", "")
-                        elif tool_name == "Bash":
-                            key = tool_input.get("command", "")[:80]
-                        elif tool_name == "Grep":
-                            key = tool_input.get("pattern", "")
-                        tools.append(f"{tool_name}: {key}" if key else tool_name)
+                if event_type == "assistant":
+                    msg = event.get("message", {})
+                    content_blocks = msg.get("content", [])
+                    texts = []
+                    tools = []
+                    for block in content_blocks:
+                        if block.get("type") == "text":
+                            texts.append(block.get("text", ""))
+                        elif block.get("type") == "tool_use":
+                            tool_name = block.get("name", "unknown")
+                            tool_input = block.get("input", {})
+                            key = ""
+                            if tool_name in ("Read", "Edit", "Write"):
+                                key = tool_input.get("file_path", "")
+                            elif tool_name == "Glob":
+                                key = tool_input.get("pattern", "")
+                            elif tool_name == "Bash":
+                                key = tool_input.get("command", "")[:80]
+                            elif tool_name == "Grep":
+                                key = tool_input.get("pattern", "")
+                            tools.append(f"{tool_name}: {key}" if key else tool_name)
 
-                if on_event:
-                    try:
-                        if texts:
-                            text_content = "\n".join(texts)[:500]
+                    if on_event:
+                        try:
+                            if texts:
+                                text_content = "\n".join(texts)[:500]
+                                await on_event(
+                                    session_uuid=self.session_uuid,
+                                    claude_session_id=claude_session_id,
+                                    event_type="assistant",
+                                    content=text_content,
+                                )
+                            if tools:
+                                tools_content = "\n".join(tools)
+                                await on_event(
+                                    session_uuid=self.session_uuid,
+                                    claude_session_id=claude_session_id,
+                                    event_type="tool_use",
+                                    content=tools_content,
+                                )
+                        except Exception as e:
+                            print(f"Error in on_event callback: {e}")
+
+                elif event_type == "result":
+                    final_result = event.get("result", "")
+                    if on_event:
+                        try:
+                            cost = event.get("cost_usd")
+                            duration = event.get("duration_ms")
+                            num_turns = event.get("num_turns")
+                            meta_parts = []
+                            if cost is not None:
+                                meta_parts.append(f"${cost:.4f}")
+                            if duration is not None:
+                                meta_parts.append(f"{duration / 1000:.1f}s")
+                            if num_turns is not None:
+                                meta_parts.append(f"{num_turns} turns")
+                            meta = " | ".join(meta_parts)
                             await on_event(
                                 session_uuid=self.session_uuid,
                                 claude_session_id=claude_session_id,
-                                event_type="assistant",
-                                content=text_content,
+                                event_type="result",
+                                content=meta or "done",
                             )
-                        if tools:
-                            tools_content = "\n".join(tools)
-                            await on_event(
-                                session_uuid=self.session_uuid,
-                                claude_session_id=claude_session_id,
-                                event_type="tool_use",
-                                content=tools_content,
-                            )
-                    except Exception as e:
-                        print(f"Error in on_event callback: {e}")
-
-            elif event_type == "result":
-                final_result = event.get("result", "")
+                        except Exception as e:
+                            print(f"Error in on_event callback: {e}")
+            except Exception as e:
+                print(f"Error processing event (skipping): {e}")
                 if on_event:
                     try:
-                        cost = event.get("cost_usd")
-                        duration = event.get("duration_ms")
-                        num_turns = event.get("num_turns")
-                        meta_parts = []
-                        if cost is not None:
-                            meta_parts.append(f"${cost:.4f}")
-                        if duration is not None:
-                            meta_parts.append(f"{duration / 1000:.1f}s")
-                        if num_turns is not None:
-                            meta_parts.append(f"{num_turns} turns")
-                        meta = " | ".join(meta_parts)
                         await on_event(
                             session_uuid=self.session_uuid,
                             claude_session_id=claude_session_id,
-                            event_type="result",
-                            content=meta or "done",
+                            event_type="assistant",
+                            content="[ERR] event processing error, continuing...",
                         )
-                    except Exception as e:
-                        print(f"Error in on_event callback: {e}")
+                    except Exception:
+                        pass
 
         await stderr_task
         await self.process.wait()
