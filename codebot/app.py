@@ -44,6 +44,7 @@ from codebot.handlers.claude_handlers import (
     stream_active_sessions,
     start_stream_handler,
     recover_session_handler,
+    resume_session_callback,
 )
 
 app.add_error_handler(error_handler)
@@ -77,6 +78,7 @@ app.add_handler(
 app.add_handler(CallbackQueryHandler(select_session_to_kill, pattern="^kill_"))
 app.add_handler(CallbackQueryHandler(start_stream_handler, pattern="^stream_"))
 app.add_handler(CallbackQueryHandler(show_session_log, pattern="^(slog_|hslog_)"))
+app.add_handler(CallbackQueryHandler(resume_session_callback, pattern="^hsres_"))
 app.add_handler(CallbackQueryHandler(recover_session_handler, pattern="^recover_(yes|no)$"))
 app.add_handler(
     CallbackQueryHandler(

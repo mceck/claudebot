@@ -235,46 +235,16 @@ async def show_session_log(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         prompt = cs.prompt
         project = proj
     elif data.startswith("hslog_"):
-        # Historical session: recover it for next message
-        session_uuid = data[6:]
-        claude_sid = await get_claude_session_id(session_uuid)
-        if not claude_sid:
-            await query.edit_message_text("Could not find Claude session ID for this session.")
-            return
+        # Historical session: show log
+        partial_uuid = data[6:]
         recent = await get_recent_sessions(limit=50)
-        target = next((s for s in recent if s["session_uuid"].startswith(session_uuid)), None)
-        project = target["project"] if target else ctx.current_project
-        if not project:
-            await query.edit_message_text("Could not determine the project for this session.")
+        target = next((s for s in recent if s["session_uuid"].startswith(partial_uuid)), None)
+        if not target:
+            await query.edit_message_text("Session not found.")
             return
-        prompt_preview = target["prompt"][:60] + "..." if target and target.get("prompt") and len(target["prompt"]) > 60 else (target.get("prompt", "") if target else "")
-
-        if project != ctx.current_project:
-            # Different project: ask user to confirm switch
-            ctx.pending_recovery = {
-                "claude_sid": claude_sid,
-                "project": project,
-                "prompt_preview": prompt_preview,
-            }
-            await query.edit_message_text(
-                f"This session belongs to *{project}* but current project is *{ctx.current_project}*.\n"
-                f"Switch project and recover session?",
-                parse_mode="Markdown",
-                reply_markup=InlineKeyboardMarkup([[
-                    InlineKeyboardButton("Yes", callback_data="recover_yes"),
-                    InlineKeyboardButton("No", callback_data="recover_no"),
-                ]]),
-            )
-            return
-
-        ctx.resume_claude_session_id[project] = claude_sid
-        await query.edit_message_text(
-            f"Session recovered for *{project}*\n"
-            f"_{prompt_preview}_\n\n"
-            f"Next message will resume this session (`-r`). After that, it goes back to `-c`.",
-            parse_mode="Markdown",
-        )
-        return
+        session_uuid = target["session_uuid"]
+        project = target["project"]
+        prompt = target.get("prompt", "")
     else:
         return
 
@@ -317,24 +287,77 @@ async def show_session_log(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 
 
 @authenticated
+async def resume_session_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
+    data = query.data or ""
+    partial_uuid = data[6:]  # strip "hsres_"
+
+    recent = await get_recent_sessions(limit=50)
+    target = next((s for s in recent if s["session_uuid"].startswith(partial_uuid)), None)
+    if not target:
+        await query.edit_message_text("Session not found.")
+        return
+    session_uuid = target["session_uuid"]
+    project = target["project"] or ctx.current_project
+    if not project:
+        await query.edit_message_text("Could not determine the project for this session.")
+        return
+    claude_sid = await get_claude_session_id(session_uuid)
+    if not claude_sid:
+        await query.edit_message_text("Could not find Claude session ID for this session.")
+        return
+    prompt_preview = target["prompt"][:60] + "..." if target.get("prompt") and len(target["prompt"]) > 60 else (target.get("prompt", "") or "")
+
+    if project != ctx.current_project:
+        ctx.pending_recovery = {
+            "claude_sid": claude_sid,
+            "project": project,
+            "prompt_preview": prompt_preview,
+        }
+        await query.edit_message_text(
+            f"This session belongs to *{project}* but current project is *{ctx.current_project}*.\n"
+            f"Switch project and recover session?",
+            parse_mode="Markdown",
+            reply_markup=InlineKeyboardMarkup([[
+                InlineKeyboardButton("Yes", callback_data="recover_yes"),
+                InlineKeyboardButton("No", callback_data="recover_no"),
+            ]]),
+        )
+        return
+
+    ctx.resume_claude_session_id[project] = claude_sid
+    await query.edit_message_text(
+        f"Session recovered for *{project}* [{session_uuid}]\n"
+        f"_{prompt_preview}_",
+        parse_mode="Markdown",
+    )
+
+
+@authenticated
 async def get_last_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     sessions = await get_recent_sessions(limit=10)
     if not sessions:
         await send_message(update, context, "No session history found.")
         return
 
-    buttons = []
+    keyboard = []
     for s in sessions:
         proj = s.get("project", "?")
         prompt = s.get("prompt", "")
         ts = s["last_event"].strftime("%d/%m %H:%M") if s.get("last_event") else ""
         preview = prompt[:25] + "..." if prompt and len(prompt) > 25 else (prompt or "")
         label = f"{proj} | {preview} | {ts}"
-        buttons.append(
-            InlineKeyboardButton(label, callback_data=f"hslog_{s['session_uuid'][:53]}")
-        )
+        sid = s["session_uuid"][:53]
+        keyboard.append([InlineKeyboardButton(label, callback_data=f"hslog_{sid}")])
+        keyboard.append([
+            InlineKeyboardButton("Log", callback_data=f"hslog_{sid}"),
+            InlineKeyboardButton("Resume", callback_data=f"hsres_{sid}"),
+        ])
 
-    reply_markup = build_keyboard(buttons)
+    reply_markup = InlineKeyboardMarkup(keyboard)
     await send_message(
         update, context, "Recent sessions:", reply_markup=reply_markup,
     )
@@ -594,13 +617,13 @@ async def recover_session_handler(update: Update, context: ContextTypes.DEFAULT_
 
     # recover_yes: switch project and set resume ID
     project = pending["project"]
+    old_project = ctx.current_project
     ctx.set_current_project(project)
     ctx.resume_claude_session_id[project] = pending["claude_sid"]
     prompt_preview = pending.get("prompt_preview", "")
     await query.edit_message_text(
-        f"Switched to *{project}* and session recovered.\n"
-        f"_{prompt_preview}_\n\n"
-        f"Next message will resume this session (`-r`). After that, it goes back to `-c`.",
+        f"Session recovered for *{project}* (switched from {old_project})\n"
+        f"_{prompt_preview}_",
         parse_mode="Markdown",
     )
 
