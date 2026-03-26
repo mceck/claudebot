@@ -41,6 +41,8 @@ from codebot.handlers.claude_handlers import (
     show_scheduled_jobs,
     delete_scheduled_job,
     delete_scheduled_job_handler,
+    delete_queued_message_handler,
+    queue_message_handler,
     stream_active_sessions,
     start_stream_handler,
     recover_session_handler,
@@ -91,6 +93,8 @@ app.add_handler(
     )
 )
 app.add_handler(CallbackQueryHandler(delete_scheduled_job_handler, pattern="^delete_schedule_"))
+app.add_handler(CallbackQueryHandler(delete_queued_message_handler, pattern="^delete_queue_"))
+app.add_handler(CallbackQueryHandler(queue_message_handler, pattern="^queue_(yes|no)_"))
 app.add_handler(MessageHandler(filters.VOICE, voice_message_handler))
 app.add_handler(MessageHandler(filters.TEXT, message_handler))
 

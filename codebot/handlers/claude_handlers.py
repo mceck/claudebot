@@ -106,6 +106,9 @@ async def process_claude_prompt_and_answer(chat_id: int, message: str, project: 
     )
     await log_claude_response(current_project, resp)
 
+    # Process next queued message if any
+    await _run_queued_message(current_project)
+
     return resp
 
 
@@ -141,11 +144,28 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         return
     claude_session = ctx.claude_sessions.get(ctx.current_project)
     if claude_session:
-        await send_message(
-            update,
-            context,
-            "A Claude session is already processing a message. Please wait for it to finish before sending another message.",
-        )
+        if ctx.queued_messages.get(ctx.current_project):
+            await send_message(
+                update, context,
+                "A message is already queued for this project. Use /deljob to cancel it first.",
+            )
+            return
+        if update.message and update.message.text:
+            ctx.pending_queue[ctx.current_project] = {
+                "chat_id": update.message.chat_id,
+                "message": update.message.text,
+            }
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton("Yes", callback_data=f"queue_yes_{ctx.current_project}"),
+                InlineKeyboardButton("No", callback_data=f"queue_no_{ctx.current_project}"),
+            ]])
+            preview = update.message.text[:50] + "..." if len(update.message.text) > 50 else update.message.text
+            await send_message(
+                update, context,
+                f"A session is already active. Queue this message to run after the current one finishes?\n\n_{preview}_",
+                reply_markup=keyboard,
+                parse_mode="Markdown",
+            )
         return
     if update.message and update.message.text:
         await send_message(update, context, _build_processing_status(update.message.text, ctx.current_project))
@@ -153,6 +173,55 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
     else:
         await send_message(update, context, "No message found.")
+
+
+@authenticated
+async def queue_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
+    data = query.data or ""
+
+    if data.startswith("queue_yes_"):
+        project = data[10:]
+        pending = ctx.pending_queue.pop(project, None)
+        if not pending:
+            await query.edit_message_text("No pending message to queue.")
+            return
+        # If session already finished, run immediately
+        if project not in ctx.claude_sessions:
+            await query.edit_message_text("Session completed. Running message now...")
+            status = _build_processing_status(pending["message"], project)
+            await send_direct_message(pending["chat_id"], status, parse_mode="Markdown")
+            await process_claude_prompt_and_answer(pending["chat_id"], pending["message"], project)
+            return
+        ctx.queued_messages[project] = pending
+        preview = pending["message"][:50] + "..." if len(pending["message"]) > 50 else pending["message"]
+        await query.edit_message_text(
+            f"Message queued for *{project}*: _{preview}_\n\nUse /deljob to cancel.",
+            parse_mode="Markdown",
+        )
+
+    elif data.startswith("queue_no_"):
+        project = data[9:]
+        ctx.pending_queue.pop(project, None)
+        await query.edit_message_text("Message not queued.")
+
+
+async def _run_queued_message(project: str):
+    """Check and run the next queued message for a project after session completes."""
+    queued = ctx.queued_messages.pop(project, None)
+    if not queued:
+        return
+    preview = queued["message"][:50] + "..." if len(queued["message"]) > 50 else queued["message"]
+    status = _build_processing_status(queued["message"], project)
+    await send_direct_message(
+        queued["chat_id"],
+        f"▶️ Running queued message: _{preview}_\n\n{status}",
+        parse_mode="Markdown",
+    )
+    await process_claude_prompt_and_answer(queued["chat_id"], queued["message"], project)
 
 
 @authenticated
@@ -518,13 +587,21 @@ async def schedule_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 @authenticated
 async def show_scheduled_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE):
     jobs = scheduler.get_jobs()
-    if not jobs:
+    queued = dict(ctx.queued_messages)
+    if not jobs and not queued:
         await send_message(update, context, "No messages currently scheduled.")
         return
     message_lines = ["*Scheduled messages:*\n"]
+    for project, q in queued.items():
+        message_text = q["message"]
+        message_preview = message_text[:30] + "..." if len(message_text) > 30 else message_text
+        message_preview = message_preview.replace("\n", " ")
+        message_lines.append(f"• *Project:* {project}")
+        message_lines.append(f"   *Message:* _{message_preview}_")
+        message_lines.append(f"   *When:* ▶️ After current session\n")
     for job in jobs:
         run_time = job.next_run_time.strftime('%d/%m %H:%M') if job.next_run_time else "N/A"
-        
+
         message_preview = ""
         project_name = ""
         if job.args and len(job.args) >= 3:
@@ -532,7 +609,7 @@ async def show_scheduled_jobs(update: Update, context: ContextTypes.DEFAULT_TYPE
             project_name = job.args[2]
             message_preview = message_text[:30] + "..." if len(message_text) > 30 else message_text
             message_preview = message_preview.replace("\n", " ")
-        
+
         message_lines.append(f"• *Project:* {project_name}")
         message_lines.append(f"   *Message:* _{message_preview}_")
         message_lines.append(f"   *When:* {run_time}\n")
@@ -572,12 +649,16 @@ async def schedule_continue_handler(update: Update, context: ContextTypes.DEFAUL
 @authenticated
 async def delete_scheduled_job(update: Update, context: ContextTypes.DEFAULT_TYPE):
     jobs = scheduler.get_jobs()
-    if not jobs:
+    queued = dict(ctx.queued_messages)
+    if not jobs and not queued:
         await send_message(update, context, "No messages currently scheduled.")
         return
-    message_lines = ["*Delete schedule message*"]
-    
+    message_lines = ["*Delete scheduled message*"]
+
     buttons = []
+    for project in queued:
+        button_label = f"[Queued] {project}"
+        buttons.append(InlineKeyboardButton(button_label, callback_data=f"delete_queue_{project}"))
     for job in jobs:
         run_time = job.next_run_time.strftime('%d/%m %H:%M') if job.next_run_time else "N/A"
         project_name = ""
@@ -602,6 +683,22 @@ async def delete_scheduled_job_handler(update: Update, context: ContextTypes.DEF
         await update.callback_query.edit_message_text(f"Scheduled job deleted successfully.")
     except Exception as e:
         await update.callback_query.edit_message_text(f"Error deleting scheduled job: {e}")
+
+
+@authenticated
+async def delete_queued_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.callback_query:
+        return
+    await update.callback_query.answer()
+    data = update.callback_query.data or ""
+    project = data.split("delete_queue_")[-1]
+    removed = ctx.queued_messages.pop(project, None)
+    if removed:
+        await update.callback_query.edit_message_text(
+            f"Queued message for *{project}* cancelled.", parse_mode="Markdown"
+        )
+    else:
+        await update.callback_query.edit_message_text("No queued message found to cancel.")
 
 
 @authenticated
