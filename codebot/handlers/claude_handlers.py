@@ -734,6 +734,22 @@ async def stream_active_sessions(update: Update, context: ContextTypes.DEFAULT_T
     if not active_sessions:
         await send_message(update, context, "No active Claude sessions found.")
         return
+    if len(active_sessions) == 1:
+        proj, cs = active_sessions[0]
+        if proj in ctx.active_streams:
+            await send_message(update, context, f"Already streaming session: {proj}")
+            return
+        chat_id = update.effective_chat.id if update.effective_chat else None
+        if not chat_id:
+            return
+        ctx.active_streams.add(proj)
+        msg = await send_message(
+            update, context, f"*Streaming:* {proj}\n\n_Waiting for events..._", parse_mode="Markdown",
+        )
+        message_id = msg.message_id if msg else None
+        if message_id:
+            asyncio.create_task(_stream_session_task(chat_id, message_id, proj, cs.session_uuid))
+        return
     buttons = []
     for proj, cs in active_sessions:
         label = proj
