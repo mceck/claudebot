@@ -23,7 +23,26 @@ from codebot.tools.scheduler import scheduler
 
 
 
-def _build_processing_status(message: str, project: str | None = None) -> str:
+async def _get_branch(project: str) -> str | None:
+    cwd = os.path.join(settings.projects_dir, project)
+    try:
+        _, out = await run_command("git rev-parse --abbrev-ref HEAD", cwd=cwd)
+        branch = out.strip()
+        return branch if branch else None
+    except Exception:
+        return None
+
+
+def _prompt_preview(prompt: str | None, max_words: int = 6) -> str | None:
+    if not prompt:
+        return None
+    words = prompt.split()
+    if len(words) <= max_words:
+        return prompt
+    return " ".join(words[:max_words]) + "..."
+
+
+def _build_processing_status(message: str, project: str | None = None, branch: str | None = None) -> str:
     prefix_parts = []
     msg = message
     cleared = msg.startswith("!")
@@ -36,6 +55,17 @@ def _build_processing_status(message: str, project: str | None = None) -> str:
         prefix_parts.append("[RESUME]")
     prefix = " ".join(prefix_parts)
     status = f"{prefix} Processing..." if prefix else "Processing..."
+    info_parts = []
+    if project:
+        info_parts.append(f"*Project:* {project}")
+    if branch:
+        info_parts.append(f"*Branch:* {branch}")
+    prompt_preview = _prompt_preview(msg)
+    if prompt_preview:
+        info_parts.append(f"*Prompt:* {prompt_preview}")
+    info = "\n".join(info_parts)
+    if info:
+        return f"{status}\n{info}\n\n💡 Use /stream to follow the progress live."
     return f"{status}\n\n💡 Use /stream to follow the progress live."
 
 
@@ -115,7 +145,8 @@ async def process_claude_prompt_and_answer(chat_id: int, message: str, project: 
 async def scheduled_process_claude_prompt_and_answer(chat_id: int, message: str, project: str | None = None):
     """Wrapper for scheduled jobs: sends a notification before processing."""
     preview = message[:50] + "..." if len(message) > 50 else message
-    status = _build_processing_status(message)
+    branch = await _get_branch(project) if project else None
+    status = _build_processing_status(message, project, branch)
     await send_direct_message(chat_id, f"⏰ Running scheduled task: _{preview}_\n\n{status}", parse_mode="Markdown")
     return await process_claude_prompt_and_answer(chat_id, message, project)
 
@@ -168,7 +199,8 @@ async def message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
         return
     if update.message and update.message.text:
-        await send_message(update, context, _build_processing_status(update.message.text, ctx.current_project))
+        branch = await _get_branch(ctx.current_project) if ctx.current_project else None
+        await send_message(update, context, _build_processing_status(update.message.text, ctx.current_project, branch))
         await process_claude_prompt_and_answer(update.message.chat_id, update.message.text)
 
     else:
@@ -192,7 +224,8 @@ async def queue_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
         # If session already finished, run immediately
         if project not in ctx.claude_sessions:
             await query.edit_message_text("Session completed. Running message now...")
-            status = _build_processing_status(pending["message"], project)
+            branch = await _get_branch(project)
+            status = _build_processing_status(pending["message"], project, branch)
             await send_direct_message(pending["chat_id"], status, parse_mode="Markdown")
             await process_claude_prompt_and_answer(pending["chat_id"], pending["message"], project)
             return
@@ -215,7 +248,8 @@ async def _run_queued_message(project: str):
     if not queued:
         return
     preview = queued["message"][:50] + "..." if len(queued["message"]) > 50 else queued["message"]
-    status = _build_processing_status(queued["message"], project)
+    branch = await _get_branch(project)
+    status = _build_processing_status(queued["message"], project, branch)
     await send_direct_message(
         queued["chat_id"],
         f"▶️ Running queued message: _{preview}_\n\n{status}",
@@ -518,7 +552,8 @@ async def transcription_to_claude_handler(
         await send_message(update, context, "No message found to reply to.")
         return
     await update.callback_query.edit_message_reply_markup(reply_markup=None)
-    await send_message(update, context, _build_processing_status(transcription))
+    branch = await _get_branch(ctx.current_project) if ctx.current_project else None
+    await send_message(update, context, _build_processing_status(transcription, ctx.current_project, branch))
     await process_claude_prompt_and_answer(update.callback_query.message.chat.id, transcription, ctx.current_project)
 
 
@@ -730,28 +765,35 @@ async def recover_session_handler(update: Update, context: ContextTypes.DEFAULT_
 
 @authenticated
 async def stream_active_sessions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    active_sessions = list(ctx.claude_sessions.items())
-    if not active_sessions:
-        await send_message(update, context, "No active Claude sessions found.")
+    available = [(p, cs) for p, cs in ctx.claude_sessions.items() if p not in ctx.active_streams]
+    if not available:
+        if ctx.claude_sessions:
+            await send_message(update, context, "All active sessions are already being streamed.")
+        else:
+            await send_message(update, context, "No active Claude sessions found.")
         return
-    if len(active_sessions) == 1:
-        proj, cs = active_sessions[0]
-        if proj in ctx.active_streams:
-            await send_message(update, context, f"Already streaming session: {proj}")
-            return
+    if len(available) == 1:
+        proj, cs = available[0]
         chat_id = update.effective_chat.id if update.effective_chat else None
         if not chat_id:
             return
         ctx.active_streams.add(proj)
+        branch = await _get_branch(proj)
+        header = f"*Streaming:* {proj}"
+        if branch:
+            header += f" (`{branch}`)"
+        preview = _prompt_preview(cs.prompt)
+        if preview:
+            header += f"\n*Prompt:* {preview}"
         msg = await send_message(
-            update, context, f"*Streaming:* {proj}\n\n_Waiting for events..._", parse_mode="Markdown",
+            update, context, f"{header}\n\n_Waiting for events..._", parse_mode="Markdown",
         )
         message_id = msg.message_id if msg else None
         if message_id:
             asyncio.create_task(_stream_session_task(chat_id, message_id, proj, cs.session_uuid))
         return
     buttons = []
-    for proj, cs in active_sessions:
+    for proj, cs in available:
         label = proj
         if cs.prompt:
             preview = cs.prompt[:30] + "..." if len(cs.prompt) > 30 else cs.prompt
@@ -788,7 +830,14 @@ async def start_stream_handler(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     ctx.active_streams.add(proj)
-    await query.edit_message_text(f"*Streaming:* {proj}\n\n_Waiting for events..._", parse_mode="Markdown")
+    branch = await _get_branch(proj)
+    header = f"*Streaming:* {proj}"
+    if branch:
+        header += f" (`{branch}`)"
+    preview = _prompt_preview(cs.prompt)
+    if preview:
+        header += f"\n*Prompt:* {preview}"
+    await query.edit_message_text(f"{header}\n\n_Waiting for events..._", parse_mode="Markdown")
     message_id = query.message.message_id
     asyncio.create_task(_stream_session_task(chat_id, message_id, proj, cs.session_uuid))
 
