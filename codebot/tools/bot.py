@@ -31,6 +31,8 @@ async def setup_commands(application):
         BotCommand("kill", "Kill an active Claude session"),
         BotCommand("clear", "Clear the current Claude session"),
         BotCommand("checklogin", "Check if the bot is logged in to Claude"),
+        BotCommand("status", "Check Claude service status"),
+        BotCommand("usage", "Show daily/weekly usage and reset times"),
     ]
     await application.bot.set_my_commands(commands)
     scheduler.start()

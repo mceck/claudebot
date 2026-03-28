@@ -25,6 +25,10 @@ from codebot.handlers.git_handlers import (
     git_history,
     git_history_callback,
 )
+from codebot.handlers.info_handlers import (
+    claude_status,
+    claude_usage,
+)
 from codebot.handlers.claude_handlers import (
     check_login,
     message_handler,
@@ -67,6 +71,8 @@ app.add_handler(CommandHandler("gco", git_checkout))
 app.add_handler(CommandHandler("gdel", git_delete_branch))
 app.add_handler(CommandHandler("ghist", git_history))
 app.add_handler(CommandHandler("checklogin", check_login))
+app.add_handler(CommandHandler("status", claude_status))
+app.add_handler(CommandHandler("usage", claude_usage))
 app.add_handler(CommandHandler("schedule", schedule_message))
 app.add_handler(CommandHandler("showjobs", show_scheduled_jobs))
 app.add_handler(CommandHandler("deljob", delete_scheduled_job))
