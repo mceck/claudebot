@@ -38,8 +38,10 @@ class Claude:
         self.prompt = message
         escaped_message = shlex.quote(message)
         cmd = f"claude --dangerously-skip-permissions"
-        if settings.MODEL:
-            cmd += f" --model {settings.MODEL}"
+        from codebot.tools.context import ctx
+        model = ctx.selected_model or settings.MODEL
+        if model:
+            cmd += f" --model {model}"
         if settings.EFFORT:
             cmd += f" --effort {settings.EFFORT}"
         if plan_mode:

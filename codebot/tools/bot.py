@@ -33,6 +33,7 @@ async def setup_commands(application):
         BotCommand("checklogin", "Check if the bot is logged in to Claude"),
         BotCommand("status", "Check Claude service status"),
         BotCommand("usage", "Show daily/weekly usage and reset times"),
+        BotCommand("model", "Select Claude model (Opus/Sonnet)"),
     ]
     await application.bot.set_my_commands(commands)
     scheduler.start()

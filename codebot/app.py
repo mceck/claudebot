@@ -28,6 +28,8 @@ from codebot.handlers.git_handlers import (
 from codebot.handlers.info_handlers import (
     claude_status,
     claude_usage,
+    select_model,
+    select_model_callback,
 )
 from codebot.handlers.claude_handlers import (
     check_login,
@@ -73,11 +75,13 @@ app.add_handler(CommandHandler("ghist", git_history))
 app.add_handler(CommandHandler("checklogin", check_login))
 app.add_handler(CommandHandler("status", claude_status))
 app.add_handler(CommandHandler("usage", claude_usage))
+app.add_handler(CommandHandler("model", select_model))
 app.add_handler(CommandHandler("schedule", schedule_message))
 app.add_handler(CommandHandler("showjobs", show_scheduled_jobs))
 app.add_handler(CommandHandler("deljob", delete_scheduled_job))
 app.add_handler(CommandHandler("lastsessions", get_last_sessions))
 app.add_handler(CommandHandler("stream", stream_active_sessions))
+app.add_handler(CallbackQueryHandler(select_model_callback, pattern="^model_"))
 app.add_handler(CallbackQueryHandler(select_project, pattern="^selectproject_"))
 app.add_handler(CallbackQueryHandler(git_history_callback, pattern="^ghist_"))
 app.add_handler(

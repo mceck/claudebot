@@ -9,6 +9,7 @@ class Context:
         self.pending_recovery: dict | None = None  # {claude_sid, project, prompt_preview}
         self.pending_queue: dict[str, dict] = {}  # project -> {chat_id, message} awaiting user confirmation
         self.queued_messages: dict[str, dict] = {}  # project -> {chat_id, message} confirmed, waiting to run
+        self.selected_model: str = "opus"
 
     def set_current_project(self, project_name: str):
         self.current_project = project_name

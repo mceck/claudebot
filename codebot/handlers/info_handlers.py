@@ -2,11 +2,12 @@ import os
 from datetime import datetime, timezone
 
 import httpx
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes
 
 from codebot.tools.auth import authenticated
 from codebot.tools.bot import send_message
+from codebot.tools.context import ctx
 
 STATUS_EMOJI = {
     "operational": "🟢",
@@ -189,3 +190,32 @@ def _progress_bar(pct: float, length: int = 10) -> str:
     filled = int(pct / 100 * length)
     filled = max(0, min(filled, length))
     return "█" * filled + "░" * (length - filled)
+
+
+MODELS = {"opus": "Opus", "sonnet": "Sonnet"}
+
+
+@authenticated
+async def select_model(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    current = ctx.selected_model or "opus"
+    buttons = []
+    for key, label in MODELS.items():
+        check = " ✓" if key == current else ""
+        buttons.append(InlineKeyboardButton(f"{label}{check}", callback_data=f"model_{key}"))
+    keyboard = InlineKeyboardMarkup([buttons])
+    await send_message(update, context, "Select model:", reply_markup=keyboard)
+
+
+async def select_model_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+    model = query.data.replace("model_", "")
+    if model not in MODELS:
+        return
+    ctx.selected_model = model
+    buttons = []
+    for key, label in MODELS.items():
+        check = " ✓" if key == model else ""
+        buttons.append(InlineKeyboardButton(f"{label}{check}", callback_data=f"model_{key}"))
+    keyboard = InlineKeyboardMarkup([buttons])
+    await query.edit_message_text(f"Model: *{MODELS[model]}*", reply_markup=keyboard, parse_mode="Markdown")
